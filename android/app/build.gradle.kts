@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "com.gwid.app.gwid"
+    namespace = "com.github.kometteam.komet"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -28,7 +28,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.gwid.app.gwid"
+        applicationId = "com.github.kometteam.komet"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

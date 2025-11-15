@@ -1,4 +1,4 @@
-package com.gwid.app.gwid
+package com.github.kometteam.komet
 
 import io.flutter.embedding.android.FlutterActivity
 
