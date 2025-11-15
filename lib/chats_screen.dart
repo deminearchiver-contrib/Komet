@@ -24,6 +24,7 @@ import 'package:gwid/models/channel.dart';
 import 'package:gwid/search_channels_screen.dart';
 import 'package:gwid/downloads_screen.dart';
 import 'package:gwid/user_id_lookup_screen.dart';
+import 'package:gwid/widgets/message_preview_dialog.dart';
 
 class SearchResult {
   final Chat chat;
@@ -237,11 +238,9 @@ class _ChatsScreenState extends State<ChatsScreen>
     );
   }
 
-
   void _listenForUpdates() {
     _apiSubscription = ApiService.instance.messages.listen((message) {
       if (!mounted) return;
-
 
       if (message['type'] == 'invalid_token') {
         print(
@@ -254,18 +253,22 @@ class _ChatsScreenState extends State<ChatsScreen>
       }
 
       final opcode = message['opcode'];
+      final cmd = message['cmd'];
       final payload = message['payload'];
       if (payload == null) return;
       final chatIdValue = payload['chatId'];
-      if (chatIdValue == null) return;
-      final int chatId = chatIdValue;
+      final int? chatId = chatIdValue != null ? chatIdValue as int? : null;
 
-      if (opcode == 129) {
+      if (opcode == 272 || opcode == 274) {
+      } else if (chatId == null) {
+        return;
+      }
+
+      if (opcode == 129 && chatId != null) {
         _setTypingForChat(chatId);
       }
 
-
-      if (opcode == 128) {
+      if (opcode == 128 && chatId != null) {
         final newMessage = Message.fromJson(payload['message']);
         ApiService.instance.clearCacheForChat(chatId);
 
@@ -284,10 +287,8 @@ class _ChatsScreenState extends State<ChatsScreen>
 
             if (_isSavedMessages(updatedChat)) {
               if (updatedChat.id == 0) {
-
                 _allChats.insert(0, updatedChat);
               } else {
-
                 final savedIndex = _allChats.indexWhere(
                   (c) => _isSavedMessages(c) && c.id == 0,
                 );
@@ -295,7 +296,6 @@ class _ChatsScreenState extends State<ChatsScreen>
                 _allChats.insert(insertIndex, updatedChat);
               }
             } else {
-
               final savedIndex = _allChats.indexWhere(
                 (c) => _isSavedMessages(c),
               );
@@ -305,9 +305,7 @@ class _ChatsScreenState extends State<ChatsScreen>
             _filterChats();
           });
         }
-      }
-
-      else if (opcode == 67) {
+      } else if (opcode == 67 && chatId != null) {
         final editedMessage = Message.fromJson(payload['message']);
         ApiService.instance.clearCacheForChat(chatId);
 
@@ -322,10 +320,8 @@ class _ChatsScreenState extends State<ChatsScreen>
 
               if (_isSavedMessages(updatedChat)) {
                 if (updatedChat.id == 0) {
-
                   _allChats.insert(0, updatedChat);
                 } else {
-
                   final savedIndex = _allChats.indexWhere(
                     (c) => _isSavedMessages(c) && c.id == 0,
                   );
@@ -343,9 +339,7 @@ class _ChatsScreenState extends State<ChatsScreen>
             });
           }
         }
-      }
-
-      else if (opcode == 66) {
+      } else if (opcode == 66 && chatId != null) {
         final deletedMessageIds = List<String>.from(
           payload['messageIds'] ?? [],
         );
@@ -356,7 +350,6 @@ class _ChatsScreenState extends State<ChatsScreen>
           final oldChat = _allChats[chatIndex];
 
           if (deletedMessageIds.contains(oldChat.lastMessage.id)) {
-
             ApiService.instance.getChatsAndContacts(force: true).then((data) {
               if (mounted) {
                 final chats = data['chats'] as List<dynamic>;
@@ -380,15 +373,12 @@ class _ChatsScreenState extends State<ChatsScreen>
         }
       }
 
-
-      if (opcode == 129) {
+      if (opcode == 129 && chatId != null) {
         _setTypingForChat(chatId);
       }
 
-
       if (opcode == 132) {
         final bool isOnline = payload['online'] == true;
-
 
         final dynamic contactIdAny = payload['contactId'] ?? payload['userId'];
         if (contactIdAny != null) {
@@ -396,7 +386,6 @@ class _ChatsScreenState extends State<ChatsScreen>
               ? contactIdAny
               : int.tryParse(contactIdAny.toString());
           if (cid != null) {
-
             final currentTime =
                 DateTime.now().millisecondsSinceEpoch ~/
                 1000; // Конвертируем в секунды
@@ -444,20 +433,17 @@ class _ChatsScreenState extends State<ChatsScreen>
         }
       }
 
-
       if (opcode == 36 && payload['contacts'] != null) {
         final List<dynamic> blockedContactsJson = payload['contacts'] as List;
         final blockedContacts = blockedContactsJson
             .map((json) => Contact.fromJson(json))
             .toList();
 
-
         for (final blockedContact in blockedContacts) {
           print(
             'Обновляем контакт ${blockedContact.name} (ID: ${blockedContact.id}): isBlocked=${blockedContact.isBlocked}, isBlockedByMe=${blockedContact.isBlockedByMe}',
           );
           if (_contacts.containsKey(blockedContact.id)) {
-
             _contacts[blockedContact.id] = blockedContact;
             print(
               'Обновлен существующий контакт: ${_contacts[blockedContact.id]?.name}',
@@ -465,7 +451,6 @@ class _ChatsScreenState extends State<ChatsScreen>
 
             ApiService.instance.notifyContactUpdate(blockedContact);
           } else {
-
             _contacts[blockedContact.id] = blockedContact;
             print(
               'Добавлен новый заблокированный контакт: ${blockedContact.name}',
@@ -478,13 +463,11 @@ class _ChatsScreenState extends State<ChatsScreen>
         if (mounted) setState(() {});
       }
 
-
       if (opcode == 48) {
         print('Получен ответ на создание группы: $payload');
 
         _refreshChats();
       }
-
 
       if (opcode == 272) {
         print('Получен ответ на обновление папок: $payload');
@@ -502,7 +485,11 @@ class _ChatsScreenState extends State<ChatsScreen>
               if (mounted) {
                 setState(() {
                   _folders = folders;
+                  final foldersOrder =
+                      payload['foldersOrder'] as List<dynamic>?;
+                  _sortFoldersByOrder(foldersOrder);
                 });
+                _updateFolderTabController();
                 _filterChats();
               }
             }
@@ -514,6 +501,54 @@ class _ChatsScreenState extends State<ChatsScreen>
         }
       }
 
+      if (opcode == 274 && cmd == 1) {
+        print('Получен ответ на создание/обновление папки: $payload');
+
+        try {
+          final folderJson = payload['folder'] as Map<String, dynamic>?;
+          if (folderJson != null) {
+            final updatedFolder = ChatFolder.fromJson(folderJson);
+            final folderId = updatedFolder.id;
+
+            if (mounted) {
+              final existingIndex = _folders.indexWhere(
+                (f) => f.id == folderId,
+              );
+              final isNewFolder = existingIndex == -1;
+
+              setState(() {
+                if (existingIndex != -1) {
+                  _folders[existingIndex] = updatedFolder;
+                } else {
+                  _folders.add(updatedFolder);
+                }
+
+                final foldersOrder = payload['foldersOrder'] as List<dynamic>?;
+                _sortFoldersByOrder(foldersOrder);
+              });
+
+              _updateFolderTabController();
+              _filterChats();
+
+              if (isNewFolder) {
+                final newFolderIndex = _folders.indexWhere(
+                  (f) => f.id == folderId,
+                );
+                if (newFolderIndex != -1) {
+                  final targetIndex = newFolderIndex + 1;
+                  if (_folderTabController.length > targetIndex) {
+                    _folderTabController.animateTo(targetIndex);
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) {
+          print(
+            'Ошибка обработки созданной/обновленной папки из opcode 274: $e',
+          );
+        }
+      }
 
       if (message['type'] == 'channels_found') {
         final payload = message['payload'];
@@ -544,7 +579,6 @@ class _ChatsScreenState extends State<ChatsScreen>
   }
 
   void _refreshChats() {
-
     _chatsFuture = ApiService.instance.getChatsAndContacts(force: true);
     _chatsFuture.then((data) {
       if (mounted) {
@@ -578,7 +612,6 @@ class _ChatsScreenState extends State<ChatsScreen>
       ),
       child: Column(
         children: [
-
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -622,7 +655,6 @@ class _ChatsScreenState extends State<ChatsScreen>
             ),
           ),
 
-
           Expanded(child: _buildChannelsList()),
         ],
       ),
@@ -633,7 +665,6 @@ class _ChatsScreenState extends State<ChatsScreen>
     if (_channelsLoaded) return;
 
     try {
-
       await ApiService.instance.searchChannels('каналы');
       _channelsLoaded = true;
     } catch (e) {
@@ -645,7 +676,6 @@ class _ChatsScreenState extends State<ChatsScreen>
     final colors = Theme.of(context).colorScheme;
 
     if (_channels.isEmpty) {
-
       return ListView(
         padding: const EdgeInsets.all(8),
         children: [
@@ -688,7 +718,6 @@ class _ChatsScreenState extends State<ChatsScreen>
       );
     }
 
-
     return ListView.builder(
       padding: const EdgeInsets.all(8),
       itemCount: _channels.length,
@@ -730,7 +759,6 @@ class _ChatsScreenState extends State<ChatsScreen>
           overflow: TextOverflow.ellipsis,
         ),
         onTap: () {
-
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Открытие канала: $title'),
@@ -804,7 +832,6 @@ class _ChatsScreenState extends State<ChatsScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-
               Container(
                 width: 40,
                 height: 4,
@@ -821,7 +848,6 @@ class _ChatsScreenState extends State<ChatsScreen>
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 20),
-
 
               ListTile(
                 leading: CircleAvatar(
@@ -840,7 +866,6 @@ class _ChatsScreenState extends State<ChatsScreen>
                   _showCreateGroupDialog();
                 },
               ),
-
 
               ListTile(
                 leading: CircleAvatar(
@@ -864,7 +889,6 @@ class _ChatsScreenState extends State<ChatsScreen>
                 },
               ),
 
-
               ListTile(
                 leading: CircleAvatar(
                   backgroundColor: Theme.of(
@@ -887,7 +911,6 @@ class _ChatsScreenState extends State<ChatsScreen>
                 },
               ),
 
-
               ListTile(
                 leading: CircleAvatar(
                   backgroundColor: Theme.of(
@@ -909,7 +932,6 @@ class _ChatsScreenState extends State<ChatsScreen>
                   );
                 },
               ),
-
 
               ListTile(
                 leading: CircleAvatar(
@@ -946,7 +968,6 @@ class _ChatsScreenState extends State<ChatsScreen>
     final List<int> selectedContacts = [];
 
     final int? myId = _myProfile?.id;
-
 
     final List<Contact> availableContacts = _contacts.values.where((contact) {
       final contactNameLower = contact.name.toLowerCase();
@@ -1035,8 +1056,36 @@ class _ChatsScreenState extends State<ChatsScreen>
   }
 
   bool _isGroupChat(Chat chat) {
-
     return chat.type == 'CHAT' || chat.participantIds.length > 2;
+  }
+
+  void _updateFolderTabController() {
+    final oldIndex = _folderTabController.index;
+    final newLength = 1 + _folders.length;
+    if (_folderTabController.length != newLength) {
+      _folderTabController.removeListener(_onFolderTabChanged);
+      _folderTabController.dispose();
+      _folderTabController = TabController(
+        length: newLength,
+        vsync: this,
+        initialIndex: oldIndex < newLength ? oldIndex : 0,
+      );
+      _folderTabController.addListener(_onFolderTabChanged);
+    }
+  }
+
+  void _sortFoldersByOrder(List<dynamic>? foldersOrder) {
+    if (foldersOrder == null || foldersOrder.isEmpty) return;
+
+    final orderedIds = foldersOrder.map((id) => id.toString()).toList();
+    _folders.sort((a, b) {
+      final aIndex = orderedIds.indexOf(a.id);
+      final bIndex = orderedIds.indexOf(b.id);
+      if (aIndex == -1 && bIndex == -1) return 0;
+      if (aIndex == -1) return 1;
+      if (bIndex == -1) return -1;
+      return aIndex.compareTo(bIndex);
+    });
   }
 
   void _loadFolders(Map<String, dynamic> data) {
@@ -1055,26 +1104,19 @@ class _ChatsScreenState extends State<ChatsScreen>
           .toList();
 
       setState(() {
-        final oldIndex = _folderTabController.index;
         _folders = folders;
-        final newLength = 1 + folders.length;
-        if (_folderTabController.length != newLength) {
-          _folderTabController.removeListener(_onFolderTabChanged);
-          _folderTabController.dispose();
-          _folderTabController = TabController(
-            length: newLength,
-            vsync: this,
-            initialIndex: oldIndex < newLength ? oldIndex : 0,
-          );
-          _folderTabController.addListener(_onFolderTabChanged);
-        }
+
+        final foldersOrder = chatFolders['foldersOrder'] as List<dynamic>?;
+        _sortFoldersByOrder(foldersOrder);
+
+        _updateFolderTabController();
 
         if (_selectedFolderId == null) {
           if (_folderTabController.index != 0) {
             _folderTabController.animateTo(0);
           }
         } else {
-          final folderIndex = folders.indexWhere(
+          final folderIndex = _folders.indexWhere(
             (f) => f.id == _selectedFolderId,
           );
           if (folderIndex != -1) {
@@ -1197,7 +1239,6 @@ class _ChatsScreenState extends State<ChatsScreen>
           return 0; // Остальные чаты сохраняют порядок
         });
       } else if (_searchFocusNode.hasFocus && query.isEmpty) {
-
         _filteredChats = [];
       } else if (query.isNotEmpty) {
         _filteredChats = chatsToFilter.where((chat) {
@@ -1227,7 +1268,6 @@ class _ChatsScreenState extends State<ChatsScreen>
           return 0;
         });
       } else {
-
         _filteredChats = [];
       }
     });
@@ -1261,9 +1301,7 @@ class _ChatsScreenState extends State<ChatsScreen>
       return;
     }
 
-    setState(() {
-
-    });
+    setState(() {});
 
     final results = <SearchResult>[];
     final query = _searchQuery.toLowerCase();
@@ -1293,7 +1331,6 @@ class _ChatsScreenState extends State<ChatsScreen>
 
       if (contact == null) continue;
 
-
       if (contact.name.toLowerCase().contains(query)) {
         results.add(
           SearchResult(
@@ -1305,7 +1342,6 @@ class _ChatsScreenState extends State<ChatsScreen>
         );
         continue;
       }
-
 
       if (contact.description != null &&
           contact.description?.toLowerCase().contains(query) == true) {
@@ -1319,7 +1355,6 @@ class _ChatsScreenState extends State<ChatsScreen>
         );
         continue;
       }
-
 
       if (chat.lastMessage.text.toLowerCase().contains(query) ||
           (chat.lastMessage.text.contains("welcome.saved.dialog.message") &&
@@ -1338,10 +1373,8 @@ class _ChatsScreenState extends State<ChatsScreen>
       }
     }
 
-
     List<SearchResult> filteredResults = results;
     if (_searchFilter == 'recent') {
-
       final weekAgo = DateTime.now().subtract(const Duration(days: 7));
       filteredResults = results.where((result) {
         final lastMessageTime = DateTime.fromMillisecondsSinceEpoch(
@@ -1401,14 +1434,12 @@ class _ChatsScreenState extends State<ChatsScreen>
       final orderedChats = <Chat>[];
       final remainingChats = List<Chat>.from(_allChats);
 
-
       for (final id in chatIds) {
         final chatIndex = remainingChats.indexWhere((chat) => chat.id == id);
         if (chatIndex != -1) {
           orderedChats.add(remainingChats.removeAt(chatIndex));
         }
       }
-
 
       orderedChats.addAll(remainingChats);
 
@@ -1532,13 +1563,11 @@ class _ChatsScreenState extends State<ChatsScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-
             CircularProgressIndicator(
               strokeWidth: 3,
               valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
             ),
             const SizedBox(height: 24),
-
 
             Text(
               'Подключение',
@@ -1549,7 +1578,6 @@ class _ChatsScreenState extends State<ChatsScreen>
               ),
             ),
             const SizedBox(height: 8),
-
 
             Text(
               'Устанавливаем соединение с сервером...',
@@ -1591,14 +1619,11 @@ class _ChatsScreenState extends State<ChatsScreen>
                 );
                 _contacts = {for (var c in contacts) c.id: c};
 
-
                 final presence =
                     snapshot.data!['presence'] as Map<String, dynamic>?;
                 if (presence != null) {
                   print('Получен presence: $presence');
-
                 }
-
 
                 if (!_hasRequestedBlockedContacts) {
                   _hasRequestedBlockedContacts = true;
@@ -1607,7 +1632,6 @@ class _ChatsScreenState extends State<ChatsScreen>
 
                 _loadFolders(snapshot.data!);
 
-
                 _loadChatOrder().then((_) {
                   setState(() {
                     _filteredChats = List.from(_allChats);
@@ -1615,10 +1639,8 @@ class _ChatsScreenState extends State<ChatsScreen>
                 });
               }
               if (_filteredChats.isEmpty && _allChats.isEmpty) {
-
                 return const Center(child: CircularProgressIndicator());
               }
-
 
               if (_isSearchExpanded) {
                 return _buildSearchResults();
@@ -1674,7 +1696,6 @@ class _ChatsScreenState extends State<ChatsScreen>
     final isDarkMode = themeProvider.themeMode == ThemeMode.dark;
 
     return Drawer(
-
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1695,7 +1716,6 @@ class _ChatsScreenState extends State<ChatsScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-
                     CircleAvatar(
                       radius: 30, // Чуть крупнее
                       backgroundColor: colors.primary,
@@ -1742,7 +1762,6 @@ class _ChatsScreenState extends State<ChatsScreen>
                 ),
                 const SizedBox(height: 12),
 
-
                 Text(
                   _myProfile?.displayName ?? 'Загрузка...',
                   style: TextStyle(
@@ -1752,7 +1771,6 @@ class _ChatsScreenState extends State<ChatsScreen>
                   ),
                 ),
                 const SizedBox(height: 4),
-
 
                 Text(
                   _myProfile?.formattedPhone ?? '',
@@ -1767,7 +1785,6 @@ class _ChatsScreenState extends State<ChatsScreen>
 
           Expanded(
             child: Column(
-
               children: [
                 ListTile(
                   leading: const Icon(Icons.person_outline),
@@ -1795,7 +1812,6 @@ class _ChatsScreenState extends State<ChatsScreen>
                   onTap: () {
                     Navigator.pop(context); // Закрыть Drawer
 
-
                     final screenSize = MediaQuery.of(context).size;
                     final screenWidth = screenSize.width;
                     final screenHeight = screenSize.height;
@@ -1808,7 +1824,6 @@ class _ChatsScreenState extends State<ChatsScreen>
                     );
 
                     if (isDesktopOrTablet) {
-
                       showDialog(
                         context: context,
                         barrierDismissible: true,
@@ -1820,7 +1835,6 @@ class _ChatsScreenState extends State<ChatsScreen>
                         ),
                       );
                     } else {
-
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (context) => SettingsScreen(
@@ -1861,7 +1875,6 @@ class _ChatsScreenState extends State<ChatsScreen>
     if (_searchQuery.isEmpty) {
       return Column(
         children: [
-
           _buildRecentChatsIcons(),
           const Divider(height: 1),
 
@@ -2338,12 +2351,16 @@ class _ChatsScreenState extends State<ChatsScreen>
     return ListView.builder(
       itemCount: chatsForFolder.length,
       itemBuilder: (context, index) {
-        return _buildChatListItem(chatsForFolder[index], index);
+        return _buildChatListItem(chatsForFolder[index], index, folder);
       },
     );
   }
 
   Widget _buildFolderTabs() {
+    if (_folderTabController.length <= 1) {
+      return const SizedBox.shrink();
+    }
+
     final colors = Theme.of(context).colorScheme;
 
     final List<Widget> tabs = [
@@ -2377,24 +2394,252 @@ class _ChatsScreenState extends State<ChatsScreen>
           bottom: BorderSide(color: colors.outline.withOpacity(0.2), width: 1),
         ),
       ),
-      child: TabBar(
-        controller: _folderTabController,
-        isScrollable: true,
-        labelColor: colors.primary,
-        unselectedLabelColor: colors.onSurfaceVariant,
-        indicator: UnderlineTabIndicator(
-          borderSide: BorderSide(width: 3, color: colors.primary),
-          insets: const EdgeInsets.symmetric(horizontal: 16),
+      child: Stack(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _folders.length <= 3
+                    ? Center(
+                        child: TabBar(
+                          controller: _folderTabController,
+                          isScrollable: false,
+                          tabAlignment: TabAlignment.center,
+                          labelColor: colors.primary,
+                          unselectedLabelColor: colors.onSurfaceVariant,
+                          indicator: UnderlineTabIndicator(
+                            borderSide: BorderSide(
+                              width: 3,
+                              color: colors.primary,
+                            ),
+                            insets: const EdgeInsets.symmetric(horizontal: 16),
+                          ),
+                          indicatorSize: TabBarIndicatorSize.label,
+                          labelStyle: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                          unselectedLabelStyle: const TextStyle(
+                            fontWeight: FontWeight.normal,
+                            fontSize: 14,
+                          ),
+                          dividerColor: Colors.transparent,
+                          tabs: tabs,
+                          onTap: (index) {},
+                        ),
+                      )
+                    : Transform.translate(
+                        offset: const Offset(-42, 0),
+                        child: TabBar(
+                          controller: _folderTabController,
+                          isScrollable: true,
+                          labelColor: colors.primary,
+                          unselectedLabelColor: colors.onSurfaceVariant,
+                          indicator: UnderlineTabIndicator(
+                            borderSide: BorderSide(
+                              width: 3,
+                              color: colors.primary,
+                            ),
+                            insets: const EdgeInsets.symmetric(horizontal: 16),
+                          ),
+                          indicatorSize: TabBarIndicatorSize.label,
+                          labelStyle: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                          unselectedLabelStyle: const TextStyle(
+                            fontWeight: FontWeight.normal,
+                            fontSize: 14,
+                          ),
+                          dividerColor: Colors.transparent,
+                          tabs: tabs,
+                          onTap: (index) {},
+                        ),
+                      ),
+              ),
+            ],
+          ),
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            child: IconButton(
+              icon: const Icon(Icons.add, size: 20),
+              onPressed: _showCreateFolderDialog,
+              tooltip: 'Создать папку',
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              constraints: const BoxConstraints(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCreateFolderDialog() {
+    final TextEditingController titleController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Создать папку'),
+        content: TextField(
+          controller: titleController,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Название папки',
+            hintText: 'Введите название',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (value) {
+            if (value.trim().isNotEmpty) {
+              ApiService.instance.createFolder(value.trim());
+              Navigator.of(context).pop();
+            }
+          },
         ),
-        indicatorSize: TabBarIndicatorSize.label,
-        labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-        unselectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.normal,
-          fontSize: 14,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () {
+              final title = titleController.text.trim();
+              if (title.isNotEmpty) {
+                ApiService.instance.createFolder(title);
+                Navigator.of(context).pop();
+              }
+            },
+            child: const Text('Создать'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showMessagePreview(Chat chat, ChatFolder? currentFolder) async {
+    await MessagePreviewDialog.show(
+      context,
+      chat,
+      _contacts,
+      _myProfile,
+      null,
+      (context) => _buildChatMenuContent(chat, currentFolder, context),
+    );
+  }
+
+  Widget _buildChatMenuContent(
+    Chat chat,
+    ChatFolder? currentFolder,
+    BuildContext context,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              'Действия',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+          ),
+          const Divider(),
+          if (currentFolder == null && _folders.isNotEmpty)
+            ListTile(
+              leading: const Icon(Icons.folder),
+              title: const Text('Добавить в папку'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _showFolderSelectionMenu(chat);
+              },
+            ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  void _showFolderSelectionMenu(Chat chat) {
+    if (_folders.isEmpty) return;
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        final colors = Theme.of(context).colorScheme;
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.onSurfaceVariant.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Text(
+                  'Выберите папку',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const Divider(),
+              ..._folders.map((folder) {
+                return ListTile(
+                  leading: folder.emoji != null
+                      ? Text(
+                          folder.emoji!,
+                          style: const TextStyle(fontSize: 24),
+                        )
+                      : const Icon(Icons.folder),
+                  title: Text(folder.title),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _addChatToFolder(chat, folder);
+                  },
+                );
+              }),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _addChatToFolder(Chat chat, ChatFolder folder) {
+    final currentInclude = folder.include ?? [];
+
+    if (currentInclude.contains(chat.id)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Чат уже находится в папке "${folder.title}"'),
+          duration: const Duration(seconds: 2),
         ),
-        dividerColor: Colors.transparent,
-        tabs: tabs,
-        onTap: (index) {},
+      );
+      return;
+    }
+
+    final newInclude = List<int>.from(currentInclude)..add(chat.id);
+
+    ApiService.instance.updateFolder(
+      folder.id,
+      title: folder.title,
+      include: newInclude,
+      filters: folder.filters,
+    );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Чат добавлен в папку "${folder.title}"'),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -2421,7 +2666,6 @@ class _ChatsScreenState extends State<ChatsScreen>
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
                 onTap: () async {
-
                   SchedulerBinding.instance.addPostFrameCallback((_) {
                     if (mounted) {
                       setState(() {
@@ -2602,7 +2846,7 @@ class _ChatsScreenState extends State<ChatsScreen>
           : [
               IconButton(
                 icon: Image.asset(
-                  'assets/images/spermum.webp',
+                  'assets/images/spermum.png',
                   width: 28,
                   height: 28,
                 ),
@@ -2621,7 +2865,6 @@ class _ChatsScreenState extends State<ChatsScreen>
                 tooltip: 'Загрузки',
               ),
               InkWell(
-
                 onTap: () {
                   setState(() {
                     _isSearchExpanded = true;
@@ -2795,31 +3038,24 @@ class _ChatsScreenState extends State<ChatsScreen>
   Widget _buildLastMessagePreview(Chat chat) {
     final message = chat.lastMessage;
 
-
-
     if (message.attaches.isNotEmpty) {
-
       for (final attach in message.attaches) {
         final type = attach['_type'];
         if (type == 'CALL' || type == 'call') {
-
           return _buildCallPreview(attach, message, chat);
         }
       }
     }
 
-
     if (message.text.isEmpty && message.attaches.isNotEmpty) {
       return Text('Вложение', maxLines: 1, overflow: TextOverflow.ellipsis);
     }
-
 
     return Text(message.text, maxLines: 1, overflow: TextOverflow.ellipsis);
   }
 
   Widget _buildSearchMessagePreview(Chat chat, String matchedText) {
     final message = chat.lastMessage;
-
 
     if (message.attaches.isNotEmpty) {
       final callAttachments = message.attaches.where((attach) {
@@ -2828,11 +3064,9 @@ class _ChatsScreenState extends State<ChatsScreen>
       }).toList();
 
       if (callAttachments.isNotEmpty) {
-
         return _buildCallPreview(callAttachments.first, message, chat);
       }
     }
-
 
     if (message.text.isEmpty && message.attaches.isNotEmpty) {
       return Text('Вложение', maxLines: 1, overflow: TextOverflow.ellipsis);
@@ -2855,10 +3089,8 @@ class _ChatsScreenState extends State<ChatsScreen>
     IconData callIcon;
     Color? callColor;
 
-
     switch (hangupType) {
       case 'HUNGUP':
-
         final minutes = duration ~/ 60000;
         final seconds = (duration % 60000) ~/ 1000;
         final durationText = minutes > 0
@@ -2872,7 +3104,6 @@ class _ChatsScreenState extends State<ChatsScreen>
         break;
 
       case 'MISSED':
-
         final callTypeText = callType == 'VIDEO'
             ? 'Пропущенный видеозвонок'
             : 'Пропущенный звонок';
@@ -2882,7 +3113,6 @@ class _ChatsScreenState extends State<ChatsScreen>
         break;
 
       case 'CANCELED':
-
         final callTypeText = callType == 'VIDEO'
             ? 'Видеозвонок отменен'
             : 'Звонок отменен';
@@ -2892,7 +3122,6 @@ class _ChatsScreenState extends State<ChatsScreen>
         break;
 
       case 'REJECTED':
-
         final callTypeText = callType == 'VIDEO'
             ? 'Видеозвонок отклонен'
             : 'Звонок отклонен';
@@ -2902,7 +3131,6 @@ class _ChatsScreenState extends State<ChatsScreen>
         break;
 
       default:
-
         callText = callType == 'VIDEO' ? 'Видеозвонок' : 'Звонок';
         callIcon = callType == 'VIDEO' ? Icons.videocam : Icons.call;
         callColor = colors.onSurfaceVariant;
@@ -2925,7 +3153,7 @@ class _ChatsScreenState extends State<ChatsScreen>
     );
   }
 
-  Widget _buildChatListItem(Chat chat, int index) {
+  Widget _buildChatListItem(Chat chat, int index, ChatFolder? currentFolder) {
     final colors = Theme.of(context).colorScheme;
 
     final bool isSavedMessages = _isSavedMessages(chat);
@@ -2969,7 +3197,6 @@ class _ChatsScreenState extends State<ChatsScreen>
 
     return ListTile(
       key: ValueKey(chat.id),
-
       onTap: () {
         final theme = context.read<ThemeProvider>();
         if (theme.debugReadOnEnter) {
@@ -3003,7 +3230,6 @@ class _ChatsScreenState extends State<ChatsScreen>
               isBlockedByMe: false,
             );
 
-
         final participantCount =
             chat.participantsCount ?? chat.participantIds.length;
 
@@ -3036,22 +3262,25 @@ class _ChatsScreenState extends State<ChatsScreen>
       leading: Stack(
         clipBehavior: Clip.none,
         children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: colors.primaryContainer,
+          GestureDetector(
+            onLongPress: () => _showMessagePreview(chat, currentFolder),
+            child: CircleAvatar(
+              radius: 24,
+              backgroundColor: colors.primaryContainer,
 
-            backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+              backgroundImage: avatarUrl != null
+                  ? NetworkImage(avatarUrl)
+                  : null,
 
-            child: avatarUrl == null
-                ? (isSavedMessages || isGroupChat || isChannel)
-
-                      ? Icon(leadingIcon, color: colors.onPrimaryContainer)
-
-                      : Text(
-                          title.isNotEmpty ? title[0].toUpperCase() : '?',
-                          style: TextStyle(color: colors.onPrimaryContainer),
-                        )
-                : null,
+              child: avatarUrl == null
+                  ? (isSavedMessages || isGroupChat || isChannel)
+                        ? Icon(leadingIcon, color: colors.onPrimaryContainer)
+                        : Text(
+                            title.isNotEmpty ? title[0].toUpperCase() : '?',
+                            style: TextStyle(color: colors.onPrimaryContainer),
+                          )
+                  : null,
+            ),
           ),
           Positioned(
             right: -4,
@@ -3241,7 +3470,6 @@ class _SferumWebViewPanelState extends State<SferumWebViewPanel> {
           ),
           child: Column(
             children: [
-
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -3255,7 +3483,7 @@ class _SferumWebViewPanelState extends State<SferumWebViewPanel> {
                 child: Row(
                   children: [
                     Image.asset(
-                      'assets/images/spermum.webp',
+                      'assets/images/spermum.png',
                       width: 28,
                       height: 28,
                     ),

@@ -17,19 +17,16 @@ class ApiService {
   ApiService._privateConstructor();
   static final ApiService instance = ApiService._privateConstructor();
 
-
   int? _userId;
   late int _sessionId;
   int _actionId = 1;
   bool _isColdStartSent = false;
   late int _lastActionTime;
 
-
   bool _isAppInForeground = true;
 
   final List<String> _wsUrls = ['wss://ws-api.oneme.ru:443/websocket'];
   int _currentUrlIndex = 0;
-
 
   List<String> get wsUrls => _wsUrls;
   int get currentUrlIndex => _currentUrlIndex;
@@ -38,11 +35,9 @@ class ApiService {
   Timer? _pingTimer;
   int _seq = 0;
 
-
   final StreamController<Contact> _contactUpdatesController =
       StreamController<Contact>.broadcast();
   Stream<Contact> get contactUpdates => _contactUpdatesController.stream;
-
 
   final StreamController<String> _errorController =
       StreamController<String>.broadcast();
@@ -52,13 +47,11 @@ class ApiService {
   Stream<void> get reconnectionComplete =>
       _reconnectionCompleteController.stream;
 
-
   final Map<String, dynamic> _presenceData = {};
   String? authToken;
   String? userId;
 
   String? get token => authToken;
-
 
   String? _currentPasswordTrackId;
   String? _currentPasswordHint;
@@ -71,16 +64,13 @@ class ApiService {
 
   final Map<int, List<Message>> _messageCache = {};
 
-
   final Map<int, Contact> _contactCache = {};
   DateTime? _lastContactsUpdate;
   static const Duration _contactCacheExpiry = Duration(
     minutes: 5,
   ); // Кэш на 5 минут
 
-
   bool _isLoadingBlockedContacts = false;
-
 
   bool _isSessionReady = false;
 
@@ -93,10 +83,8 @@ class ApiService {
   final _connectionLogController = StreamController<String>.broadcast();
   Stream<String> get connectionLog => _connectionLogController.stream;
 
-
   final List<String> _connectionLogCache = [];
   List<String> get connectionLogCache => _connectionLogCache;
-
 
   void _log(String message) {
     print(message); // Оставляем для дебага в консоли
@@ -121,12 +109,9 @@ class ApiService {
 
   bool get isActuallyConnected {
     try {
-
       if (_channel == null || !_isSessionOnline) {
         return false;
       }
-
-
 
       return true;
     } catch (e) {
@@ -135,13 +120,11 @@ class ApiService {
     }
   }
 
-
   Completer<Map<String, dynamic>>? _inflightChatsCompleter;
   Map<String, dynamic>? _lastChatsPayload;
   DateTime? _lastChatsAt;
   final Duration _chatsCacheTtl = const Duration(seconds: 5);
   bool _chatsFetchedInThisSession = false;
-
 
   Map<String, dynamic>? get lastChatsPayload => _lastChatsPayload;
 
@@ -171,13 +154,11 @@ class ApiService {
         _connectionLogController.add(errorMessage);
         _currentUrlIndex++;
 
-
         if (_currentUrlIndex < _wsUrls.length) {
           await Future.delayed(const Duration(milliseconds: 500));
         }
       }
     }
-
 
     _log('❌ Все серверы недоступны');
     _connectionStatusController.add('Все серверы недоступны');
@@ -207,11 +188,9 @@ class ApiService {
       'Sec-WebSocket-Extensions': 'permessage-deflate',
     };
 
-
     final proxySettings = await ProxyService.instance.loadProxySettings();
 
     if (proxySettings.isEnabled && proxySettings.host.isNotEmpty) {
-
       print(
         'Используем HTTP/HTTPS прокси ${proxySettings.host}:${proxySettings.port}',
       );
@@ -223,7 +202,6 @@ class ApiService {
         customClient: customHttpClient,
       );
     } else {
-
       print('Подключение без прокси');
       _channel = IOWebSocketChannel.connect(uri, headers: headers);
     }
@@ -241,7 +219,6 @@ class ApiService {
   bool _isReconnecting = false;
 
   String generateRandomDeviceId() {
-
     return const Uuid().v4();
   }
 
@@ -256,11 +233,9 @@ class ApiService {
       final String? idFromSpoofing = spoofedData['device_id'] as String?;
 
       if (idFromSpoofing != null && idFromSpoofing.isNotEmpty) {
-
         finalDeviceId = idFromSpoofing;
         print('Используется deviceId из сессии: $finalDeviceId');
       } else {
-
         finalDeviceId = generateRandomDeviceId();
         print('device_id не найден в кэше, сгенерирован новый: $finalDeviceId');
       }
@@ -301,12 +276,9 @@ class ApiService {
     _isSessionOnline = false;
     _isSessionReady = false;
 
-
     authToken = null;
 
-
     clearAllCaches();
-
 
     _messageController.add({
       'type': 'session_terminated',
@@ -319,19 +291,15 @@ class ApiService {
     _isSessionOnline = false;
     _isSessionReady = false;
 
-
     authToken = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('authToken');
 
-
     clearAllCaches();
-
 
     _channel?.sink.close();
     _channel = null;
     _pingTimer?.cancel();
-
 
     _messageController.add({
       'type': 'invalid_token',
@@ -346,14 +314,12 @@ class ApiService {
     _lastChatsAt = null;
     _chatsFetchedInThisSession = false;
 
-
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('authToken');
 
     clearAllCaches();
     _connectionStatusController.add("disconnected");
   }
-
 
   Future<void> _sendHandshake() async {
     if (_handshakeSent) {
@@ -381,9 +347,7 @@ class ApiService {
     print('Handshake отправлен, ожидаем ответ...');
   }
 
-
   Future<void> requestOtp(String phoneNumber) async {
-
     if (_channel == null) {
       print('WebSocket не подключен, подключаемся...');
       try {
@@ -404,11 +368,9 @@ class ApiService {
     _sendMessage(17, payload);
   }
 
-
   void requestSessions() {
     _sendMessage(96, {});
   }
-
 
   void terminateAllSessions() {
     _sendMessage(97, {});
@@ -441,7 +403,6 @@ class ApiService {
     }
     await subscribeToChat(targetChatId, true);
   }
-
 
   Future<void> clearChatHistory(int chatId, {bool forAll = false}) async {
     await waitUntilOnline();
@@ -496,9 +457,7 @@ class ApiService {
     }
   }
 
-
   void markMessageAsRead(int chatId, String messageId) {
-
     waitUntilOnline().then((_) {
       final payload = {
         "type": "READ_MESSAGE",
@@ -513,9 +472,7 @@ class ApiService {
     });
   }
 
-
   void getBlockedContacts() async {
-
     if (_isLoadingBlockedContacts) {
       print(
         'ApiService: запрос заблокированных контактов уже выполняется, пропускаем',
@@ -525,19 +482,12 @@ class ApiService {
 
     _isLoadingBlockedContacts = true;
     print('ApiService: запрашиваем заблокированные контакты');
-    _sendMessage(36, {
-      'status': 'BLOCKED',
-      'count': 100,
-      'from': 0,
-
-    });
-
+    _sendMessage(36, {'status': 'BLOCKED', 'count': 100, 'from': 0});
 
     Future.delayed(const Duration(seconds: 2), () {
       _isLoadingBlockedContacts = false;
     });
   }
-
 
   void notifyContactUpdate(Contact contact) {
     print(
@@ -545,7 +495,6 @@ class ApiService {
     );
     _contactUpdatesController.add(contact);
   }
-
 
   DateTime? getLastSeen(int userId) {
     final userPresence = _presenceData[userId.toString()];
@@ -557,12 +506,10 @@ class ApiService {
     return null;
   }
 
-
   void updatePresenceData(Map<String, dynamic> presenceData) {
     _presenceData.addAll(presenceData);
     print('ApiService обновил presence данные: $_presenceData');
   }
-
 
   void sendReaction(int chatId, String messageId, String emoji) {
     final payload = {
@@ -574,27 +521,17 @@ class ApiService {
     print('Отправляем реакцию: $emoji на сообщение $messageId в чате $chatId');
   }
 
-
   void removeReaction(int chatId, String messageId) {
     final payload = {"chatId": chatId, "messageId": messageId};
     _sendMessage(179, payload);
     print('Удаляем реакцию с сообщения $messageId в чате $chatId');
   }
 
-
   void createGroup(String name, List<int> participantIds) {
     final payload = {"name": name, "participantIds": participantIds};
     _sendMessage(48, payload);
     print('Создаем группу: $name с участниками: $participantIds');
   }
-
-
-
-
-
-
-
-
 
   void updateGroup(int chatId, {String? name, List<int>? participantIds}) {
     final payload = {
@@ -605,7 +542,6 @@ class ApiService {
     _sendMessage(272, payload);
     print('Обновляем группу $chatId: $payload');
   }
-
 
   void createGroupWithMessage(String name, List<int> participantIds) {
     final cid = DateTime.now().millisecondsSinceEpoch;
@@ -628,13 +564,11 @@ class ApiService {
     print('Создаем группу: $name с участниками: $participantIds');
   }
 
-
   void renameGroup(int chatId, String newName) {
     final payload = {"chatId": chatId, "theme": newName};
     _sendMessage(55, payload);
     print('Переименовываем группу $chatId в: $newName');
   }
-
 
   void addGroupMember(
     int chatId,
@@ -651,7 +585,6 @@ class ApiService {
     print('Добавляем участников $userIds в группу $chatId');
   }
 
-
   void removeGroupMember(
     int chatId,
     List<int> userIds, {
@@ -667,15 +600,11 @@ class ApiService {
     print('Удаляем участников $userIds из группы $chatId');
   }
 
-
   void leaveGroup(int chatId) {
     final payload = {"chatId": chatId};
     _sendMessage(58, payload);
     print('Выходим из группы $chatId');
   }
-
-
-
 
   void getGroupMembers(int chatId, {int marker = 0, int count = 50}) {
     final payload = {
@@ -689,7 +618,6 @@ class ApiService {
       'Запрашиваем участников группы $chatId (marker: $marker, count: $count)',
     );
   }
-
 
   Future<int?> getChatIdByUserId(int userId) async {
     await waitUntilOnline();
@@ -740,14 +668,12 @@ class ApiService {
     }
   }
 
-
   Future<Map<String, dynamic>> getChatsOnly({bool force = false}) async {
     if (authToken == null) {
       final prefs = await SharedPreferences.getInstance();
       authToken = prefs.getString('authToken');
     }
     if (authToken == null) throw Exception("Auth token not found");
-
 
     if (!force && _lastChatsPayload != null && _lastChatsAt != null) {
       if (DateTime.now().difference(_lastChatsAt!) < _chatsCacheTtl) {
@@ -798,7 +724,6 @@ class ApiService {
       };
       _lastChatsPayload = result;
 
-
       final contacts = contactListJson
           .map((json) => Contact.fromJson(json))
           .toList();
@@ -811,9 +736,7 @@ class ApiService {
     }
   }
 
-
   Future<void> verifyCode(String token, String code) async {
-
     _currentPasswordTrackId = null;
     _currentPasswordHint = null;
     _currentPasswordEmail = null;
@@ -830,7 +753,6 @@ class ApiService {
       }
     }
 
-
     final payload = {
       'token': token,
       'verifyCode': code,
@@ -841,7 +763,6 @@ class ApiService {
     print('Код верификации отправлен с payload: $payload');
   }
 
-
   Future<void> sendPassword(String trackId, String password) async {
     await waitUntilOnline();
 
@@ -851,7 +772,6 @@ class ApiService {
     print('Пароль отправлен с payload: $payload');
   }
 
-
   Map<String, String?> getPasswordAuthData() {
     return {
       'trackId': _currentPasswordTrackId,
@@ -860,13 +780,11 @@ class ApiService {
     };
   }
 
-
   void clearPasswordAuthData() {
     _currentPasswordTrackId = null;
     _currentPasswordHint = null;
     _currentPasswordEmail = null;
   }
-
 
   Future<void> setAccountPassword(String password, String hint) async {
     await waitUntilOnline();
@@ -876,7 +794,6 @@ class ApiService {
     _sendMessage(116, payload);
     print('Запрос на установку пароля отправлен с payload: $payload');
   }
-
 
   Future<Map<String, dynamic>> joinGroupByLink(String link) async {
     await waitUntilOnline();
@@ -917,7 +834,6 @@ class ApiService {
     }
   }
 
-
   Future<void> searchContactByPhone(String phone) async {
     await waitUntilOnline();
 
@@ -927,17 +843,14 @@ class ApiService {
     print('Запрос на поиск контакта отправлен с payload: $payload');
   }
 
-
   Future<void> searchChannels(String query) async {
     await waitUntilOnline();
-
 
     final payload = {'contactIds': []};
 
     _sendMessage(32, payload);
     print('Запрос на поиск каналов отправлен с payload: $payload');
   }
-
 
   Future<void> enterChannel(String link) async {
     await waitUntilOnline();
@@ -947,7 +860,6 @@ class ApiService {
     _sendMessage(89, payload);
     print('Запрос на вход в канал отправлен с payload: $payload');
   }
-
 
   Future<void> subscribeToChannel(String link) async {
     await waitUntilOnline();
@@ -966,24 +878,20 @@ class ApiService {
       throw Exception("Auth token not found - please re-authenticate");
     }
 
-
     if (!force && _lastChatsPayload != null && _lastChatsAt != null) {
       if (DateTime.now().difference(_lastChatsAt!) < _chatsCacheTtl) {
         return _lastChatsPayload!;
       }
     }
 
-
     if (_chatsFetchedInThisSession && _lastChatsPayload != null && !force) {
       return _lastChatsPayload!;
     }
-
 
     if (_inflightChatsCompleter != null) {
       return _inflightChatsCompleter!.future;
     }
     _inflightChatsCompleter = Completer<Map<String, dynamic>>();
-
 
     if (_isSessionOnline &&
         _isSessionReady &&
@@ -997,7 +905,6 @@ class ApiService {
     try {
       Map<String, dynamic> chatResponse;
 
-
       final int opcode;
       final Map<String, dynamic> payload;
 
@@ -1005,13 +912,11 @@ class ApiService {
       final deviceId =
           prefs.getString('spoof_deviceid') ?? generateRandomDeviceId();
 
-
       if (prefs.getString('spoof_deviceid') == null) {
         await prefs.setString('spoof_deviceid', deviceId);
       }
 
       if (!_chatsFetchedInThisSession) {
-
         opcode = 19;
         payload = {
           "chatsCount": 100,
@@ -1021,16 +926,12 @@ class ApiService {
           "interactive": true,
           "presenceSync": 0,
           "token": authToken,
-
-
         };
-
 
         if (userId != null) {
           payload["userId"] = userId;
         }
       } else {
-
         return await getChatsOnly(force: force);
       }
 
@@ -1054,9 +955,7 @@ class ApiService {
           _sessionId = DateTime.now().millisecondsSinceEpoch;
           _lastActionTime = _sessionId;
 
-
           sendNavEvent('COLD_START');
-
 
           _sendInitialSetupRequests();
         } else {
@@ -1065,11 +964,9 @@ class ApiService {
           );
         }
 
-
         if (_onlineCompleter != null && !_onlineCompleter!.isCompleted) {
           _onlineCompleter!.complete();
         }
-
 
         _startPinging();
         _processMessageQueue();
@@ -1112,7 +1009,6 @@ class ApiService {
       final List<dynamic> contactListJson =
           contactResponse['payload']?['contacts'] ?? [];
 
-
       if (presence != null) {
         updatePresenceData(presence);
       }
@@ -1125,7 +1021,6 @@ class ApiService {
         'config': config,
       };
       _lastChatsPayload = result;
-
 
       final contacts = contactListJson
           .map((json) => Contact.fromJson(json))
@@ -1144,7 +1039,6 @@ class ApiService {
     }
   }
 
-
   Future<List<Message>> getMessageHistory(
     int chatId, {
     bool force = false,
@@ -1157,7 +1051,6 @@ class ApiService {
     print("Запрашиваем историю для чата $chatId с сервера.");
     final payload = {
       "chatId": chatId,
-
 
       "from": DateTime.now()
           .add(const Duration(days: 1))
@@ -1173,11 +1066,9 @@ class ApiService {
           .firstWhere((msg) => msg['seq'] == seq)
           .timeout(const Duration(seconds: 15));
 
-
       if (response['cmd'] == 3) {
         final error = response['payload'];
         print('Ошибка получения истории сообщений: $error');
-
 
         if (error['error'] == 'proto.state') {
           print(
@@ -1206,7 +1097,6 @@ class ApiService {
     }
   }
 
-
   Future<Map<String, dynamic>?> loadOldMessages(
     int chatId,
     String fromMessageId,
@@ -1230,7 +1120,6 @@ class ApiService {
           .firstWhere((msg) => msg['seq'] == seq)
           .timeout(const Duration(seconds: 15));
 
-
       if (response['cmd'] == 3) {
         final error = response['payload'];
         print('Ошибка получения старых сообщений: $error');
@@ -1247,7 +1136,6 @@ class ApiService {
   void setAppInForeground(bool isForeground) {
     _isAppInForeground = isForeground;
   }
-
 
   void sendNavEvent(String event, {int? screenTo, int? screenFrom}) {
     if (_userId == null) return;
@@ -1292,6 +1180,37 @@ class ApiService {
     });
   }
 
+  void createFolder(
+    String title, {
+    List<int>? include,
+    List<dynamic>? filters,
+  }) {
+    final folderId = const Uuid().v4();
+    final payload = {
+      "id": folderId,
+      "title": title,
+      "include": include ?? [],
+      "filters": filters ?? [],
+    };
+    _sendMessage(274, payload);
+    print('Создаем папку: $title (ID: $folderId)');
+  }
+
+  void updateFolder(
+    String folderId, {
+    String? title,
+    List<int>? include,
+    List<dynamic>? filters,
+  }) {
+    final payload = {
+      "id": folderId,
+      if (title != null) "title": title,
+      if (include != null) "include": include,
+      if (filters != null) "filters": filters,
+    };
+    _sendMessage(274, payload);
+    print('Обновляем папку: $folderId');
+  }
 
   Future<void> _sendInitialSetupRequests() async {
     print("Запускаем отправку единичных запросов при старте...");
@@ -1327,7 +1246,6 @@ class ApiService {
     print("Кэш чатов очищен.");
   }
 
-
   Contact? getCachedContact(int contactId) {
     if (_contactCache.containsKey(contactId)) {
       final contact = _contactCache[contactId]!;
@@ -1337,11 +1255,8 @@ class ApiService {
     return null;
   }
 
-
   Future<Map<String, dynamic>> getNetworkStatistics() async {
-
     final prefs = await SharedPreferences.getInstance();
-
 
     final totalTraffic =
         prefs.getDouble('network_total_traffic') ??
@@ -1353,11 +1268,9 @@ class ApiService {
     final syncTraffic =
         prefs.getDouble('network_sync_traffic') ?? (totalTraffic * 0.1);
 
-
     final currentSpeed = _isSessionOnline
         ? 512.0 * 1024
         : 0.0; // 512 KB/s если онлайн
-
 
     final ping = 25;
 
@@ -1378,13 +1291,11 @@ class ApiService {
     };
   }
 
-
   bool isContactCacheValid() {
     if (_lastContactsUpdate == null) return false;
     return DateTime.now().difference(_lastContactsUpdate!) <
         _contactCacheExpiry;
   }
-
 
   void updateContactCache(List<Contact> contacts) {
     _contactCache.clear();
@@ -1395,19 +1306,16 @@ class ApiService {
     print('Кэш контактов обновлен: ${contacts.length} контактов');
   }
 
-
   void updateCachedContact(Contact contact) {
     _contactCache[contact.id] = contact;
     print('Контакт ${contact.id} обновлен в кэше: ${contact.name}');
   }
-
 
   void clearContactCache() {
     _contactCache.clear();
     _lastContactsUpdate = null;
     print("Кэш контактов очищен.");
   }
-
 
   void clearAllCaches() {
     clearContactCache();
@@ -1417,31 +1325,24 @@ class ApiService {
     print("Все кэши очищены из-за ошибки подключения.");
   }
 
-
   Future<void> clearAllData() async {
     try {
-
       clearAllCaches();
 
-
       authToken = null;
-
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
 
-
       _pingTimer?.cancel();
       await _channel?.sink.close();
       _channel = null;
-
 
       _isSessionOnline = false;
       _isSessionReady = false;
       _chatsFetchedInThisSession = false;
       _reconnectAttempts = 0;
       _currentUrlIndex = 0;
-
 
       _messageQueue.clear();
       _presenceData.clear();
@@ -1452,7 +1353,6 @@ class ApiService {
       rethrow;
     }
   }
-
 
   void sendMessage(
     int chatId,
@@ -1474,7 +1374,6 @@ class ApiService {
       "notify": true,
     };
 
-
     clearChatsCache();
 
     if (_isSessionOnline) {
@@ -1494,7 +1393,6 @@ class ApiService {
     _messageQueue.clear();
   }
 
-
   Future<void> editMessage(int chatId, String messageId, String newText) async {
     final payload = {
       "chatId": chatId,
@@ -1504,12 +1402,9 @@ class ApiService {
       "attachments": [],
     };
 
-
     clearChatsCache();
 
-
     await waitUntilOnline();
-
 
     if (!_isSessionOnline) {
       print('Сессия не онлайн, пытаемся переподключиться...');
@@ -1524,11 +1419,9 @@ class ApiService {
             .firstWhere((msg) => msg['seq'] == seq)
             .timeout(const Duration(seconds: 10));
 
-
         if (response['cmd'] == 3) {
           final error = response['payload'];
           print('Ошибка редактирования сообщения: $error');
-
 
           if (error['error'] == 'proto.state') {
             print('Ошибка состояния сессии, переподключаемся...');
@@ -1536,7 +1429,6 @@ class ApiService {
             await waitUntilOnline();
             return false; // Попробуем еще раз
           }
-
 
           if (error['error'] == 'error.edit.invalid.message') {
             print(
@@ -1556,7 +1448,6 @@ class ApiService {
         return false;
       }
     }
-
 
     for (int attempt = 0; attempt < 3; attempt++) {
       print(
@@ -1579,7 +1470,6 @@ class ApiService {
     print('Не удалось отредактировать сообщение $messageId после 3 попыток');
   }
 
-
   Future<void> deleteMessage(
     int chatId,
     String messageId, {
@@ -1591,12 +1481,9 @@ class ApiService {
       "forMe": forMe,
     };
 
-
     clearChatsCache();
 
-
     await waitUntilOnline();
-
 
     if (!_isSessionOnline) {
       print('Сессия не онлайн, пытаемся переподключиться...');
@@ -1611,11 +1498,9 @@ class ApiService {
             .firstWhere((msg) => msg['seq'] == seq)
             .timeout(const Duration(seconds: 10));
 
-
         if (response['cmd'] == 3) {
           final error = response['payload'];
           print('Ошибка удаления сообщения: $error');
-
 
           if (error['error'] == 'proto.state') {
             print('Ошибка состояния сессии, переподключаемся...');
@@ -1632,7 +1517,6 @@ class ApiService {
         return false;
       }
     }
-
 
     for (int attempt = 0; attempt < 3; attempt++) {
       print('Попытка удаления сообщения $messageId (попытка ${attempt + 1}/3)');
@@ -1653,14 +1537,12 @@ class ApiService {
     print('Не удалось удалить сообщение $messageId после 3 попыток');
   }
 
-
   void sendTyping(int chatId, {String type = "TEXT"}) {
     final payload = {"chatId": chatId, "type": type};
     if (_isSessionOnline) {
       _sendMessage(65, payload);
     }
   }
-
 
   void updateProfileText(
     String firstName,
@@ -1675,21 +1557,17 @@ class ApiService {
     _sendMessage(16, payload);
   }
 
-
   Future<void> updateProfilePhoto(String firstName, String lastName) async {
     try {
-
       final picker = ImagePicker();
       final XFile? image = await picker.pickImage(source: ImageSource.gallery);
       if (image == null) return;
-
 
       print("Запрашиваем URL для загрузки фото...");
       final int seq = _sendMessage(80, {"count": 1});
       final response = await messages.firstWhere((msg) => msg['seq'] == seq);
       final String uploadUrl = response['payload']['url'];
       print("URL получен: $uploadUrl");
-
 
       print("Загружаем фото на сервер...");
       var request = http.MultipartRequest('POST', Uri.parse(uploadUrl));
@@ -1705,7 +1583,6 @@ class ApiService {
       final String photoToken = uploadResult['photos'].values.first['token'];
       print("Фото загружено, получен токен: $photoToken");
 
-
       print("Привязываем фото к профилю...");
       final payload = {
         "firstName": firstName,
@@ -1720,7 +1597,6 @@ class ApiService {
     }
   }
 
-
   Future<void> sendPhotoMessage(
     int chatId, {
     String? localPath,
@@ -1733,7 +1609,6 @@ class ApiService {
       if (localPath != null) {
         image = XFile(localPath);
       } else {
-
         final picker = ImagePicker();
         image = await picker.pickImage(source: ImageSource.gallery);
         if (image == null) return;
@@ -1744,7 +1619,6 @@ class ApiService {
       final int seq80 = _sendMessage(80, {"count": 1});
       final resp80 = await messages.firstWhere((m) => m['seq'] == seq80);
       final String uploadUrl = resp80['payload']['url'];
-
 
       var request = http.MultipartRequest('POST', Uri.parse(uploadUrl));
       request.files.add(await http.MultipartFile.fromPath('file', image.path));
@@ -1759,7 +1633,6 @@ class ApiService {
       final Map photos = uploadJson['photos'] as Map;
       if (photos.isEmpty) throw Exception('Не получен токен фото');
       final String photoToken = (photos.values.first as Map)['token'];
-
 
       final int cid = cidOverride ?? DateTime.now().millisecondsSinceEpoch;
       final payload = {
@@ -1806,7 +1679,6 @@ class ApiService {
     }
   }
 
-
   Future<void> sendPhotoMessages(
     int chatId, {
     required List<String> localPaths,
@@ -1816,7 +1688,6 @@ class ApiService {
     if (localPaths.isEmpty) return;
     try {
       await waitUntilOnline();
-
 
       final int cid = DateTime.now().millisecondsSinceEpoch;
       _emitLocal({
@@ -1840,7 +1711,6 @@ class ApiService {
           },
         },
       });
-
 
       final List<Map<String, String>> photoTokens = [];
       for (final path in localPaths) {
@@ -1885,14 +1755,12 @@ class ApiService {
     }
   }
 
-
   Future<void> sendFileMessage(
     int chatId, {
     String? caption,
     int? senderId, // my user id to mark local echo as mine
   }) async {
     try {
-
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.any,
       );
@@ -1907,7 +1775,6 @@ class ApiService {
       final int fileSize = result.files.single.size;
 
       await waitUntilOnline();
-
 
       final int seq87 = _sendMessage(87, {"count": 1});
       final resp87 = await messages.firstWhere((m) => m['seq'] == seq87);
@@ -1924,7 +1791,6 @@ class ApiService {
 
       print('Получен fileId: $fileId и URL: $uploadUrl');
 
-
       var request = http.MultipartRequest('POST', Uri.parse(uploadUrl));
       request.files.add(await http.MultipartFile.fromPath('file', filePath));
       var streamed = await request.send();
@@ -1936,8 +1802,6 @@ class ApiService {
       }
 
       print('Файл успешно загружен на сервер.');
-
-
 
       final int cid = DateTime.now().millisecondsSinceEpoch;
       final payload = {
@@ -1954,7 +1818,6 @@ class ApiService {
       };
 
       clearChatsCache();
-
 
       _emitLocal({
         'ver': 11,
@@ -2021,7 +1884,6 @@ class ApiService {
   }
 
   Future<bool> hasToken() async {
-
     if (authToken == null) {
       final prefs = await SharedPreferences.getInstance();
       authToken = prefs.getString('authToken');
@@ -2039,7 +1901,6 @@ class ApiService {
   }
 
   Future<List<Contact>> fetchContactsByIds(List<int> contactIds) async {
-
     if (contactIds.isEmpty) {
       return [];
     }
@@ -2048,11 +1909,9 @@ class ApiService {
     try {
       final int contactSeq = _sendMessage(32, {"contactIds": contactIds});
 
-
       final contactResponse = await messages
           .firstWhere((msg) => msg['seq'] == contactSeq)
           .timeout(const Duration(seconds: 10));
-
 
       if (contactResponse['cmd'] == 3) {
         print(
@@ -2066,7 +1925,6 @@ class ApiService {
       final contacts = contactListJson
           .map((json) => Contact.fromJson(json))
           .toList();
-
 
       for (final contact in contacts) {
         _contactCache[contact.id] = contact;
@@ -2096,7 +1954,6 @@ class ApiService {
   }
 
   Future<void> connect() async {
-
     if (_channel != null && _isSessionOnline) {
       print("WebSocket уже подключен, пропускаем подключение");
       return;
@@ -2104,10 +1961,8 @@ class ApiService {
 
     print("Запускаем подключение к WebSocket...");
 
-
     _isSessionOnline = false;
     _isSessionReady = false;
-
 
     _connectionStatusController.add("connecting");
     await _connectWithFallback();
@@ -2122,9 +1977,6 @@ class ApiService {
     await _connectWithFallback();
   }
 
-
-
-
   void sendFullJsonRequest(String jsonString) {
     if (_channel == null) {
       throw Exception('WebSocket is not connected. Connect first.');
@@ -2132,9 +1984,6 @@ class ApiService {
     _log('➡️ SEND (raw): $jsonString');
     _channel!.sink.add(jsonString);
   }
-
-
-
 
   int sendRawRequest(int opcode, Map<String, dynamic> payload) {
     if (_channel == null) {
@@ -2146,22 +1995,16 @@ class ApiService {
     return _sendMessage(opcode, payload);
   }
 
-
-
   int sendAndTrackFullJsonRequest(String jsonString) {
     if (_channel == null) {
       throw Exception('WebSocket is not connected. Connect first.');
     }
 
-
     final message = jsonDecode(jsonString) as Map<String, dynamic>;
-
 
     final int currentSeq = _seq++;
 
-
     message['seq'] = currentSeq;
-
 
     final encodedMessage = jsonEncode(message);
 
@@ -2169,7 +2012,6 @@ class ApiService {
     print('Отправляем кастомное сообщение (seq: $currentSeq): $encodedMessage');
 
     _channel!.sink.add(encodedMessage);
-
 
     return currentSeq;
   }
@@ -2188,10 +2030,8 @@ class ApiService {
     };
     final encodedMessage = jsonEncode(message);
     if (opcode == 1) {
-
       _log('➡️ SEND (ping) seq: $_seq');
     } else if (opcode == 18 || opcode == 19) {
-
       Map<String, dynamic> loggablePayload = Map.from(payload);
       if (loggablePayload.containsKey('token')) {
         String token = loggablePayload['token'] as String;
@@ -2216,16 +2056,13 @@ class ApiService {
       (message) {
         if (message == null) return;
         if (message is String && message.trim().isEmpty) {
-
           return;
         }
-
 
         String loggableMessage = message;
         try {
           final decoded = jsonDecode(message) as Map<String, dynamic>;
           if (decoded['opcode'] == 2) {
-
             loggableMessage = '⬅️ RECV (pong) seq: ${decoded['seq']}';
           } else {
             Map<String, dynamic> loggableDecoded = Map.from(decoded);
@@ -2255,12 +2092,10 @@ class ApiService {
         }
         _log(loggableMessage);
 
-
         try {
           final decodedMessage = message is String
               ? jsonDecode(message)
               : message;
-
 
           if (decodedMessage is Map &&
               decodedMessage['opcode'] == 97 &&
@@ -2287,7 +2122,6 @@ class ApiService {
             _processMessageQueue();
           }
 
-
           if (decodedMessage is Map && decodedMessage['cmd'] == 3) {
             final error = decodedMessage['payload'];
             print('Ошибка сервера: $error');
@@ -2301,7 +2135,6 @@ class ApiService {
             if (error != null && error['message'] == 'FAIL_WRONG_PASSWORD') {
               _errorController.add('FAIL_WRONG_PASSWORD');
             }
-
 
             if (error != null && error['error'] == 'password.invalid') {
               _errorController.add('Неверный пароль');
@@ -2335,7 +2168,6 @@ class ApiService {
             }
           }
 
-
           if (decodedMessage is Map &&
               decodedMessage['opcode'] == 18 &&
               decodedMessage['cmd'] == 1 &&
@@ -2351,7 +2183,6 @@ class ApiService {
                 'Получен запрос на ввод пароля: trackId=${challenge['trackId']}, hint=${challenge['hint']}, email=${challenge['email']}',
               );
 
-
               _messageController.add({
                 'type': 'password_required',
                 'trackId': _currentPasswordTrackId,
@@ -2362,13 +2193,11 @@ class ApiService {
             }
           }
 
-
           if (decodedMessage is Map &&
               decodedMessage['opcode'] == 22 &&
               decodedMessage['cmd'] == 1) {
             final payload = decodedMessage['payload'];
             print('Настройки приватности успешно обновлены: $payload');
-
 
             _messageController.add({
               'type': 'privacy_settings_updated',
@@ -2376,13 +2205,11 @@ class ApiService {
             });
           }
 
-
           if (decodedMessage is Map &&
               decodedMessage['opcode'] == 116 &&
               decodedMessage['cmd'] == 1) {
             final payload = decodedMessage['payload'];
             print('Пароль успешно установлен: $payload');
-
 
             _messageController.add({
               'type': 'password_set_success',
@@ -2390,13 +2217,11 @@ class ApiService {
             });
           }
 
-
           if (decodedMessage is Map &&
               decodedMessage['opcode'] == 57 &&
               decodedMessage['cmd'] == 1) {
             final payload = decodedMessage['payload'];
             print('Успешно присоединились к группе: $payload');
-
 
             _messageController.add({
               'type': 'group_join_success',
@@ -2404,13 +2229,11 @@ class ApiService {
             });
           }
 
-
           if (decodedMessage is Map &&
               decodedMessage['opcode'] == 46 &&
               decodedMessage['cmd'] == 1) {
             final payload = decodedMessage['payload'];
             print('Контакт найден: $payload');
-
 
             _messageController.add({
               'type': 'contact_found',
@@ -2418,13 +2241,11 @@ class ApiService {
             });
           }
 
-
           if (decodedMessage is Map &&
               decodedMessage['opcode'] == 46 &&
               decodedMessage['cmd'] == 3) {
             final payload = decodedMessage['payload'];
             print('Контакт не найден: $payload');
-
 
             _messageController.add({
               'type': 'contact_not_found',
@@ -2432,13 +2253,11 @@ class ApiService {
             });
           }
 
-
           if (decodedMessage is Map &&
               decodedMessage['opcode'] == 32 &&
               decodedMessage['cmd'] == 1) {
             final payload = decodedMessage['payload'];
             print('Каналы найдены: $payload');
-
 
             _messageController.add({
               'type': 'channels_found',
@@ -2446,13 +2265,11 @@ class ApiService {
             });
           }
 
-
           if (decodedMessage is Map &&
               decodedMessage['opcode'] == 32 &&
               decodedMessage['cmd'] == 3) {
             final payload = decodedMessage['payload'];
             print('Каналы не найдены: $payload');
-
 
             _messageController.add({
               'type': 'channels_not_found',
@@ -2460,13 +2277,11 @@ class ApiService {
             });
           }
 
-
           if (decodedMessage is Map &&
               decodedMessage['opcode'] == 89 &&
               decodedMessage['cmd'] == 1) {
             final payload = decodedMessage['payload'];
             print('Вход в канал успешен: $payload');
-
 
             _messageController.add({
               'type': 'channel_entered',
@@ -2474,20 +2289,17 @@ class ApiService {
             });
           }
 
-
           if (decodedMessage is Map &&
               decodedMessage['opcode'] == 89 &&
               decodedMessage['cmd'] == 3) {
             final payload = decodedMessage['payload'];
             print('Ошибка входа в канал: $payload');
 
-
             _messageController.add({
               'type': 'channel_error',
               'payload': payload,
             });
           }
-
 
           if (decodedMessage is Map &&
               decodedMessage['opcode'] == 57 &&
@@ -2495,13 +2307,11 @@ class ApiService {
             final payload = decodedMessage['payload'];
             print('Подписка на канал успешна: $payload');
 
-
             _messageController.add({
               'type': 'channel_subscribed',
               'payload': payload,
             });
           }
-
 
           if (decodedMessage is Map &&
               decodedMessage['opcode'] == 57 &&
@@ -2509,20 +2319,17 @@ class ApiService {
             final payload = decodedMessage['payload'];
             print('Ошибка подписки на канал: $payload');
 
-
             _messageController.add({
               'type': 'channel_error',
               'payload': payload,
             });
           }
 
-
           if (decodedMessage is Map &&
               decodedMessage['opcode'] == 59 &&
               decodedMessage['cmd'] == 1) {
             final payload = decodedMessage['payload'];
             print('Получены участники группы: $payload');
-
 
             _messageController.add({
               'type': 'group_members',
@@ -2578,12 +2385,9 @@ class ApiService {
     _onlineCompleter = Completer<void>();
     _chatsFetchedInThisSession = false;
 
-
     clearAllCaches();
 
-
     _currentUrlIndex = 0;
-
 
     _reconnectDelaySeconds = (_reconnectDelaySeconds * 2).clamp(1, 30);
     final jitter = (DateTime.now().millisecondsSinceEpoch % 1000) / 1000.0;
@@ -2611,11 +2415,9 @@ class ApiService {
     print('Запрашиваем URL для videoId: $videoId (seq: $seq)');
 
     try {
-
       final response = await messages
           .firstWhere((msg) => msg['seq'] == seq && msg['opcode'] == 83)
           .timeout(const Duration(seconds: 15));
-
 
       if (response['cmd'] == 3) {
         throw Exception(
@@ -2623,19 +2425,16 @@ class ApiService {
         );
       }
 
-
       final videoPayload = response['payload'] as Map<String, dynamic>?;
       if (videoPayload == null) {
         throw Exception('Получен пустой payload для видео');
       }
-
 
       String? videoUrl =
           videoPayload['MP4_720'] as String? ??
           videoPayload['MP4_480'] as String? ??
           videoPayload['MP4_1080'] as String? ??
           videoPayload['MP4_360'] as String?;
-
 
       if (videoUrl == null) {
         final mp4Key = videoPayload.keys.firstWhere(
@@ -2673,11 +2472,9 @@ class ApiService {
     _onlineCompleter = Completer<void>();
     _chatsFetchedInThisSession = false;
 
-
     _channel?.sink.close(status.goingAway);
     _channel = null;
     _streamSubscription = null;
-
 
     _connectionStatusController.add("disconnected");
   }
@@ -2687,10 +2484,8 @@ class ApiService {
     return data?.text;
   }
 
-
   void forceReconnect() {
     print("Принудительное переподключение...");
-
 
     _pingTimer?.cancel();
     _reconnectTimer?.cancel();
@@ -2699,7 +2494,6 @@ class ApiService {
       _channel!.sink.close(status.goingAway);
       _channel = null;
     }
-
 
     _isReconnecting = false;
     _reconnectAttempts = 0;
@@ -2710,34 +2504,27 @@ class ApiService {
     _currentUrlIndex = 0;
     _onlineCompleter = Completer<void>(); // Re-create completer
 
-
     clearAllCaches();
     _messageQueue.clear();
     _presenceData.clear();
 
-
     _connectionStatusController.add("connecting");
     _log("Запускаем новую сессию подключения...");
-
 
     _connectWithFallback();
   }
 
-
   Future<void> performFullReconnection() async {
     print("🔄 Начинаем полное переподключение...");
     try {
-
       _pingTimer?.cancel();
       _reconnectTimer?.cancel();
       _streamSubscription?.cancel();
-
 
       if (_channel != null) {
         _channel!.sink.close();
         _channel = null;
       }
-
 
       _isReconnecting = false;
       _reconnectAttempts = 0;
@@ -2750,7 +2537,6 @@ class ApiService {
       _onlineCompleter = Completer<void>();
       _seq = 0;
 
-
       _lastChatsPayload = null;
       _lastChatsAt = null;
 
@@ -2760,14 +2546,11 @@ class ApiService {
 
       _connectionStatusController.add("disconnected");
 
-
       await connect();
 
       print("✅ Полное переподключение завершено");
 
-
       await Future.delayed(const Duration(milliseconds: 1500));
-
 
       if (!_reconnectionCompleteController.isClosed) {
         print("📢 Отправляем уведомление о завершении переподключения");
@@ -2778,7 +2561,6 @@ class ApiService {
       rethrow;
     }
   }
-
 
   Future<void> updatePrivacySettings({
     String? hidden,
@@ -2807,7 +2589,6 @@ class ApiService {
 
     print('Обновляем настройки приватности: $settings');
 
-
     if (hidden != null) {
       await _updateSinglePrivacySetting({'HIDDEN': hidden == 'true'});
     }
@@ -2820,7 +2601,6 @@ class ApiService {
     if (chatsInvite != null) {
       await _updateSinglePrivacySetting({'CHATS_INVITE': chatsInvite});
     }
-
 
     if (chatsPushNotification != null) {
       await _updateSinglePrivacySetting({
@@ -2840,7 +2620,6 @@ class ApiService {
       await _updateSinglePrivacySetting({'PUSH_DETAILS': pushDetails});
     }
   }
-
 
   Future<void> _updateSinglePrivacySetting(Map<String, dynamic> setting) async {
     await waitUntilOnline();

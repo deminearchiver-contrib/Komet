@@ -21,7 +21,6 @@ import 'package:video_player/video_player.dart';
 
 bool _debugShowExactDate = false;
 
-
 void toggleDebugExactDate() {
   _debugShowExactDate = !_debugShowExactDate;
   print('Debug режим точной даты: $_debugShowExactDate');
@@ -88,13 +87,12 @@ class _ChatScreenState extends State<ChatScreen> {
       ItemPositionsListener.create();
   final ValueNotifier<bool> _showScrollToBottomNotifier = ValueNotifier(false);
 
-
   late Contact _currentContact;
-
 
   Message? _replyingToMessage;
 
   final Map<int, Contact> _contactDetailsCache = {};
+  final Set<int> _loadingContactIds = {};
 
   final Map<String, String> _lastReadMessageIdByParticipant = {};
 
@@ -140,6 +138,30 @@ class _ChatScreenState extends State<ChatScreen> {
       print(
         'Кэш контактов для экрана чата заполнен: ${_contactDetailsCache.length} контактов.',
       );
+    }
+  }
+
+  Future<void> _loadContactIfNeeded(int contactId) async {
+    if (_contactDetailsCache.containsKey(contactId) ||
+        _loadingContactIds.contains(contactId)) {
+      return;
+    }
+
+    _loadingContactIds.add(contactId);
+
+    try {
+      final contacts = await ApiService.instance.fetchContactsByIds([
+        contactId,
+      ]);
+      if (contacts.isNotEmpty && mounted) {
+        final contact = contacts.first;
+        _contactDetailsCache[contact.id] = contact;
+        setState(() {});
+      }
+    } catch (e) {
+      print('Ошибка загрузки контакта $contactId: $e');
+    } finally {
+      _loadingContactIds.remove(contactId);
     }
   }
 
@@ -375,7 +397,6 @@ class _ChatScreenState extends State<ChatScreen> {
       if (!mounted) return;
       print("✅ Получено ${allMessages.length} сообщений с сервера.");
 
-
       final Set<int> senderIds = {};
       for (final message in allMessages) {
         senderIds.add(message.senderId);
@@ -388,7 +409,6 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       }
       senderIds.remove(0); // Удаляем системный ID, если он есть
-
 
       final idsToFetch = senderIds
           .where((id) => !_contactDetailsCache.containsKey(id))
@@ -475,8 +495,6 @@ class _ChatScreenState extends State<ChatScreen> {
     _buildChatItems();
     _isLoadingMore = false;
     setState(() {});
-
-
   }
 
   bool _isSameDay(DateTime date1, DateTime date2) {
@@ -532,11 +550,9 @@ class _ChatScreenState extends State<ChatScreen> {
         print('DEBUG GROUPING: isGrouped=$isGrouped');
       }
 
-
       final isFirstInGroup =
           previousMessage == null ||
           !_isMessageGrouped(currentMessage, previousMessage);
-
 
       final isLastInGroup =
           i == source.length - 1 ||
@@ -1155,7 +1171,6 @@ class _ChatScreenState extends State<ChatScreen> {
                 await Future.delayed(const Duration(milliseconds: 500));
 
                 if (mounted) {
-
                   Navigator.of(context).pop();
 
                   widget.onChatUpdated?.call();
@@ -1213,11 +1228,9 @@ class _ChatScreenState extends State<ChatScreen> {
             onPressed: () {
               Navigator.of(context).pop(); // Закрываем диалог подтверждения
               try {
-
                 ApiService.instance.leaveGroup(widget.chatId);
 
                 if (mounted) {
-
                   Navigator.of(context).pop();
 
                   widget.onChatUpdated?.call();
@@ -1388,30 +1401,43 @@ class _ChatScreenState extends State<ChatScreen> {
                   if (isMe) {
                     final messageId = item.message.id;
                     if (messageId.startsWith('local_')) {
-
-
                       readStatus = MessageReadStatus.sending;
                     } else {
-
-
                       readStatus = MessageReadStatus.sent;
-
-
-
-
-
-
-
-
-
-
                     }
                   }
 
+                  String? forwardedFrom;
+                  String? forwardedFromAvatarUrl;
                   if (message.isForwarded) {
-                    final originalSenderId =
-                        message.link?['message']?['sender'] as int?;
-                    if (originalSenderId != null) {}
+                    final link = message.link;
+                    if (link is Map<String, dynamic>) {
+                      final chatName = link['chatName'] as String?;
+                      final chatIconUrl = link['chatIconUrl'] as String?;
+
+                      if (chatName != null) {
+                        forwardedFrom = chatName;
+                        forwardedFromAvatarUrl = chatIconUrl;
+                      } else {
+                        final forwardedMessage =
+                            link['message'] as Map<String, dynamic>?;
+                        final originalSenderId =
+                            forwardedMessage?['sender'] as int?;
+                        if (originalSenderId != null) {
+                          final originalSenderContact =
+                              _contactDetailsCache[originalSenderId];
+                          if (originalSenderContact == null) {
+                            _loadContactIfNeeded(originalSenderId);
+                            forwardedFrom = 'Участник $originalSenderId';
+                            forwardedFromAvatarUrl = null;
+                          } else {
+                            forwardedFrom = originalSenderContact.name;
+                            forwardedFromAvatarUrl =
+                                originalSenderContact.photoBaseUrl;
+                          }
+                        }
+                      }
+                    }
                   }
                   String? senderName;
                   if (widget.isGroupChat && !isMe) {
@@ -1500,6 +1526,8 @@ class _ChatScreenState extends State<ChatScreen> {
                     isGroupChat: widget.isGroupChat,
                     isChannel: widget.isChannel,
                     senderName: senderName,
+                    forwardedFrom: forwardedFrom,
+                    forwardedFromAvatarUrl: forwardedFromAvatarUrl,
                     contactDetailsCache: _contactDetailsCache,
                     onReplyTap: _scrollToMessage,
                     useAutoReplyColor: context
@@ -1659,7 +1687,6 @@ class _ChatScreenState extends State<ChatScreen> {
       leading: widget.isDesktopMode
           ? null // В десктопном режиме нет кнопки "Назад"
           : IconButton(
-
               icon: const Icon(Icons.arrow_back),
               onPressed: () => Navigator.of(context).pop(),
             ),
@@ -1908,7 +1935,6 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                     )
                   else
-
                     _ContactPresenceSubtitle(
                       chatId: widget.chatId,
                       userId: widget.contact.id,
@@ -1998,7 +2024,6 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         );
       case ChatWallpaperType.video:
-
         if (Platform.isWindows) {
           return Container(
             color: Theme.of(context).colorScheme.surface,
@@ -2195,16 +2220,13 @@ class _ChatScreenState extends State<ChatScreen> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Expanded(
-
                         child: Focus(
                           focusNode:
                               _textFocusNode, // 2. focusNode теперь здесь
                           onKeyEvent: (node, event) {
-
                             if (event is KeyDownEvent) {
                               if (event.logicalKey ==
                                   LogicalKeyboardKey.enter) {
-
                                 final bool isShiftPressed =
                                     HardwareKeyboard.instance.logicalKeysPressed
                                         .contains(
@@ -2216,7 +2238,6 @@ class _ChatScreenState extends State<ChatScreen> {
                                         );
 
                                 if (!isShiftPressed) {
-
                                   _sendMessage();
                                   return KeyEventResult.handled;
                                 }
@@ -3292,7 +3313,6 @@ class GroupProfileDraggableDialog extends StatelessWidget {
           ),
           child: Column(
             children: [
-
               Container(
                 margin: const EdgeInsets.only(top: 8),
                 width: 40,
@@ -3302,7 +3322,6 @@ class GroupProfileDraggableDialog extends StatelessWidget {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-
 
               Padding(
                 padding: const EdgeInsets.all(20),
@@ -3325,7 +3344,6 @@ class GroupProfileDraggableDialog extends StatelessWidget {
                 ),
               ),
 
-
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
@@ -3343,8 +3361,6 @@ class GroupProfileDraggableDialog extends StatelessWidget {
                     IconButton(
                       icon: Icon(Icons.settings, color: colors.primary),
                       onPressed: () async {
-
-
                         final myId = 0; // This should be passed or retrieved
 
                         Navigator.of(context).pop();
@@ -3367,13 +3383,11 @@ class GroupProfileDraggableDialog extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-
               Expanded(
                 child: ListView(
                   controller: scrollController,
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   children: [
-
                     if (contact.description != null &&
                         contact.description!.isNotEmpty)
                       Text(
@@ -3545,7 +3559,6 @@ class ContactProfileDialog extends StatelessWidget {
                             },
                           )
                         else
-
                           const SizedBox(height: 16),
 
                         if (!isChannel)
@@ -3900,7 +3913,6 @@ class _RemoveMemberDialogState extends State<_RemoveMemberDialog> {
   }
 }
 
-
 class _PromoteAdminDialog extends StatelessWidget {
   final List<Map<String, dynamic>> members;
   final Function(int) onPromoteToAdmin;
@@ -3964,7 +3976,6 @@ class _ControlMessageChip extends StatelessWidget {
   });
 
   String _formatControlMessage() {
-
     final controlAttach = message.attaches.firstWhere(
       (a) => a['_type'] == 'CONTROL',
     );
@@ -3973,7 +3984,6 @@ class _ControlMessageChip extends StatelessWidget {
     final senderName = contacts[message.senderId]?.name ?? 'Неизвестный';
     final isMe = message.senderId == myId;
     final senderDisplayName = isMe ? 'Вы' : senderName;
-
 
     String _formatUserList(List<int> userIds) {
       if (userIds.isEmpty) {
@@ -4120,7 +4130,6 @@ class _ControlMessageChip extends StatelessWidget {
         return '$senderName присоединился(ась) к группе';
 
       default:
-
         final eventTypeStr = eventType?.toString() ?? 'неизвестное';
         return 'Событие: $eventTypeStr';
     }
@@ -4153,15 +4162,12 @@ class _ControlMessageChip extends StatelessWidget {
 }
 
 void openUserProfileById(BuildContext context, int userId) {
-
   final contact = ApiService.instance.getCachedContact(userId);
 
   if (contact != null) {
-
     final isGroup = contact.id < 0; // Groups have negative IDs
 
     if (isGroup) {
-
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,
@@ -4169,7 +4175,6 @@ void openUserProfileById(BuildContext context, int userId) {
         builder: (context) => GroupProfileDraggableDialog(contact: contact),
       );
     } else {
-
       Navigator.of(context).push(
         PageRouteBuilder(
           opaque: false,
@@ -4185,7 +4190,6 @@ void openUserProfileById(BuildContext context, int userId) {
       );
     }
   } else {
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
