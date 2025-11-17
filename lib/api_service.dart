@@ -1227,6 +1227,19 @@ class ApiService {
     print('Обновляем папку: $folderId');
   }
 
+  void deleteFolder(String folderId) {
+    final payload = {
+      "folderIds": [folderId],
+    };
+    _sendMessage(276, payload);
+    print('Удаляем папку: $folderId');
+  }
+
+  void requestFolderSync() {
+    _sendMessage(272, {"folderSync": 0});
+    print('Запрос на обновление папок отправлен');
+  }
+
   Future<void> _sendInitialSetupRequests() async {
     print("Запускаем отправку единичных запросов при старте...");
 

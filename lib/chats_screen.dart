@@ -26,6 +26,7 @@ import 'package:gwid/search_channels_screen.dart';
 import 'package:gwid/downloads_screen.dart';
 import 'package:gwid/user_id_lookup_screen.dart';
 import 'package:gwid/widgets/message_preview_dialog.dart';
+import 'package:gwid/services/chat_read_settings_service.dart';
 
 class SearchResult {
   final Chat chat;
@@ -548,6 +549,40 @@ class _ChatsScreenState extends State<ChatsScreen>
           print(
             'Ошибка обработки созданной/обновленной папки из opcode 274: $e',
           );
+        }
+      }
+
+      if (opcode == 276 && cmd == 1) {
+        print('Получен ответ на удаление папки: $payload');
+
+        try {
+          final foldersOrder = payload['foldersOrder'] as List<dynamic>?;
+          if (foldersOrder != null && mounted) {
+            final currentIndex = _folderTabController.index;
+
+            setState(() {
+              final orderedIds = foldersOrder
+                  .map((id) => id.toString())
+                  .toList();
+              _folders.removeWhere((folder) => !orderedIds.contains(folder.id));
+              _sortFoldersByOrder(foldersOrder);
+            });
+
+            _updateFolderTabController();
+            _filterChats();
+
+            if (currentIndex >= _folderTabController.length) {
+              _folderTabController.animateTo(0);
+            } else if (currentIndex > 0) {
+              _folderTabController.animateTo(
+                currentIndex < _folderTabController.length ? currentIndex : 0,
+              );
+            }
+
+            ApiService.instance.requestFolderSync();
+          }
+        } catch (e) {
+          print('Ошибка обработки удаления папки из opcode 276: $e');
         }
       }
 
@@ -2366,22 +2401,30 @@ class _ChatsScreenState extends State<ChatsScreen>
 
     final List<Widget> tabs = [
       Tab(
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [Text('Все чаты', style: TextStyle(fontSize: 14))],
+        child: GestureDetector(
+          onLongPress: () {},
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [Text('Все чаты', style: TextStyle(fontSize: 14))],
+          ),
         ),
       ),
       ..._folders.map(
         (folder) => Tab(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (folder.emoji != null) ...[
-                Text(folder.emoji!, style: const TextStyle(fontSize: 16)),
-                const SizedBox(width: 6),
+          child: GestureDetector(
+            onLongPress: () {
+              _showFolderEditMenu(folder);
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (folder.emoji != null) ...[
+                  Text(folder.emoji!, style: const TextStyle(fontSize: 16)),
+                  const SizedBox(width: 6),
+                ],
+                Text(folder.title, style: const TextStyle(fontSize: 14)),
               ],
-              Text(folder.title, style: const TextStyle(fontSize: 14)),
-            ],
+            ),
           ),
         ),
       ),
@@ -2519,6 +2562,226 @@ class _ChatsScreenState extends State<ChatsScreen>
     );
   }
 
+  Future<void> _showFolderEditMenu(ChatFolder folder) async {
+    final colors = Theme.of(context).colorScheme;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.4,
+          minChildSize: 0.3,
+          maxChildSize: 0.6,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 8, bottom: 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: colors.onSurfaceVariant.withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: colors.outline.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        if (folder.emoji != null) ...[
+                          Text(
+                            folder.emoji!,
+                            style: const TextStyle(fontSize: 24),
+                          ),
+                          const SizedBox(width: 12),
+                        ],
+                        Expanded(
+                          child: Text(
+                            folder.title,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: colors.onSurface,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          color: colors.onSurfaceVariant,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(child: _buildFolderEditMenuContent(folder, context)),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildFolderEditMenuContent(ChatFolder folder, BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              'Действия',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.add),
+            title: const Text('Выбрать чаты'),
+            onTap: () {
+              Navigator.of(context).pop();
+              _showAddChatsToFolderDialog(folder);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.edit),
+            title: const Text('Переименовать'),
+            onTap: () {
+              Navigator.of(context).pop();
+              _showRenameFolderDialog(folder);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete, color: Colors.red),
+            title: const Text(
+              'Удалить папку',
+              style: TextStyle(color: Colors.red),
+            ),
+            onTap: () {
+              Navigator.of(context).pop();
+              _showDeleteFolderDialog(folder);
+            },
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  void _showRenameFolderDialog(ChatFolder folder) {
+    final TextEditingController titleController = TextEditingController(
+      text: folder.title,
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Переименовать папку'),
+        content: TextField(
+          controller: titleController,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Название папки',
+            hintText: 'Введите название',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (value) {
+            if (value.trim().isNotEmpty) {
+              ApiService.instance.updateFolder(
+                folder.id,
+                title: value.trim(),
+                include: folder.include,
+                filters: folder.filters,
+              );
+              Navigator.of(context).pop();
+            }
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () {
+              final title = titleController.text.trim();
+              if (title.isNotEmpty) {
+                ApiService.instance.updateFolder(
+                  folder.id,
+                  title: title,
+                  include: folder.include,
+                  filters: folder.filters,
+                );
+                Navigator.of(context).pop();
+              }
+            },
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteFolderDialog(ChatFolder folder) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Удалить папку'),
+        content: Text(
+          'Вы уверены, что хотите удалить папку "${folder.title}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              ApiService.instance.deleteFolder(folder.id);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Папка "${folder.title}" удалена'),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showMessagePreview(Chat chat, ChatFolder? currentFolder) async {
     await MessagePreviewDialog.show(
       context,
@@ -2557,6 +2820,15 @@ class _ChatsScreenState extends State<ChatsScreen>
                 _showFolderSelectionMenu(chat);
               },
             ),
+          ListTile(
+            leading: const Icon(Icons.mark_chat_read),
+            title: const Text('Настройки чтения'),
+            subtitle: const Text('Настроить чтение сообщений для этого чата'),
+            onTap: () {
+              Navigator.of(context).pop();
+              _showReadSettingsDialog(chat);
+            },
+          ),
           const SizedBox(height: 8),
         ],
       ),
@@ -2615,6 +2887,26 @@ class _ChatsScreenState extends State<ChatsScreen>
     );
   }
 
+  Future<void> _showReadSettingsDialog(Chat chat) async {
+    final settingsService = ChatReadSettingsService.instance;
+    final currentSettings = await settingsService.getSettings(chat.id);
+    final theme = context.read<ThemeProvider>();
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return _ReadSettingsDialogContent(
+          chat: chat,
+          initialSettings: currentSettings,
+          globalReadOnAction: theme.debugReadOnAction,
+          globalReadOnEnter: theme.debugReadOnEnter,
+        );
+      },
+    );
+  }
+
   void _addChatToFolder(Chat chat, ChatFolder folder) {
     final currentInclude = folder.include ?? [];
 
@@ -2642,6 +2934,83 @@ class _ChatsScreenState extends State<ChatsScreen>
         content: Text('Чат добавлен в папку "${folder.title}"'),
         duration: const Duration(seconds: 2),
       ),
+    );
+  }
+
+  void _showAddChatsToFolderDialog(ChatFolder folder) {
+    final currentInclude = folder.include ?? [];
+
+    // Получаем все чаты, кроме "Избранного" (chat.id == 0)
+    final allAvailableChats = _allChats.where((chat) {
+      return chat.id != 0;
+    }).toList();
+
+    // Сортируем: сначала чаты, которые уже в папке, затем остальные
+    final sortedChats = List<Chat>.from(allAvailableChats);
+    sortedChats.sort((a, b) {
+      final aInFolder = currentInclude.contains(a.id);
+      final bInFolder = currentInclude.contains(b.id);
+      if (aInFolder && !bInFolder) return -1;
+      if (!aInFolder && bInFolder) return 1;
+      return 0;
+    });
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return _AddChatsToFolderDialog(
+          folder: folder,
+          availableChats: sortedChats,
+          contacts: _contacts,
+          onAddChats: (selectedChats) {
+            _updateFolderChats(selectedChats, folder);
+          },
+        );
+      },
+    );
+  }
+
+  void _updateFolderChats(List<Chat> selectedChats, ChatFolder folder) {
+    final currentInclude = folder.include ?? [];
+    final selectedChatIds = selectedChats.map((chat) => chat.id).toSet();
+
+    // Создаем новый список include только с выбранными чатами
+    final newInclude = selectedChatIds.toList();
+
+    // Подсчитываем изменения
+    final addedCount = newInclude
+        .where((id) => !currentInclude.contains(id))
+        .length;
+    final removedCount = currentInclude
+        .where((id) => !selectedChatIds.contains(id))
+        .length;
+
+    ApiService.instance.updateFolder(
+      folder.id,
+      title: folder.title,
+      include: newInclude,
+      filters: folder.filters,
+    );
+
+    String message;
+    if (addedCount > 0 && removedCount > 0) {
+      message = 'Папка "${folder.title}" обновлена';
+    } else if (addedCount > 0) {
+      message = addedCount == 1
+          ? 'Чат добавлен в папку "${folder.title}"'
+          : '$addedCount чатов добавлено в папку "${folder.title}"';
+    } else if (removedCount > 0) {
+      message = removedCount == 1
+          ? 'Чат удален из папки "${folder.title}"'
+          : '$removedCount чатов удалено из папки "${folder.title}"';
+    } else {
+      message = 'Изменения сохранены';
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
     );
   }
 
@@ -3564,6 +3933,473 @@ class _SferumWebViewPanelState extends State<SferumWebViewPanel> {
           ),
         );
       },
+    );
+  }
+}
+
+class _AddChatsToFolderDialog extends StatefulWidget {
+  final ChatFolder folder;
+  final List<Chat> availableChats;
+  final Map<int, Contact> contacts;
+  final Function(List<Chat>) onAddChats;
+
+  const _AddChatsToFolderDialog({
+    required this.folder,
+    required this.availableChats,
+    required this.contacts,
+    required this.onAddChats,
+  });
+
+  @override
+  State<_AddChatsToFolderDialog> createState() =>
+      _AddChatsToFolderDialogState();
+}
+
+class _AddChatsToFolderDialogState extends State<_AddChatsToFolderDialog> {
+  late final Set<int> _selectedChatIds;
+
+  @override
+  void initState() {
+    super.initState();
+    final currentInclude = widget.folder.include ?? [];
+    _selectedChatIds = currentInclude.toSet();
+  }
+
+  bool _isGroupChat(Chat chat) {
+    return chat.type == 'CHAT' || chat.participantIds.length > 2;
+  }
+
+  bool _isSavedMessages(Chat chat) {
+    return chat.id == 0;
+  }
+
+  void _toggleChatSelection(Chat chat) {
+    setState(() {
+      if (_selectedChatIds.contains(chat.id)) {
+        _selectedChatIds.remove(chat.id);
+      } else {
+        _selectedChatIds.add(chat.id);
+      }
+    });
+  }
+
+  void _addSelectedChats() {
+    final selectedChats = widget.availableChats
+        .where((chat) => _selectedChatIds.contains(chat.id))
+        .toList();
+
+    Navigator.of(context).pop();
+    widget.onAddChats(selectedChats);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.5,
+      maxChildSize: 0.9,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 8, bottom: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.onSurfaceVariant.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: colors.outline.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    if (widget.folder.emoji != null) ...[
+                      Text(
+                        widget.folder.emoji!,
+                        style: const TextStyle(fontSize: 24),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Expanded(
+                      child: Text(
+                        'Выбрать чаты для "${widget.folder.title}"',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: colors.onSurface,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      color: colors.onSurfaceVariant,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: widget.availableChats.length,
+                  itemBuilder: (context, index) {
+                    final chat = widget.availableChats[index];
+                    final isGroupChat = _isGroupChat(chat);
+                    final isChannel = chat.type == 'CHANNEL';
+                    final isSavedMessages = _isSavedMessages(chat);
+
+                    Contact? contact;
+                    String title;
+                    String? avatarUrl;
+                    IconData leadingIcon;
+
+                    if (isSavedMessages) {
+                      contact = widget.contacts[chat.ownerId];
+                      title = "Избранное";
+                      leadingIcon = Icons.bookmark;
+                      avatarUrl = null;
+                    } else if (isChannel) {
+                      contact = null;
+                      title = chat.title ?? "Канал";
+                      leadingIcon = Icons.campaign;
+                      avatarUrl = chat.baseIconUrl;
+                    } else if (isGroupChat) {
+                      contact = null;
+                      title = chat.title?.isNotEmpty == true
+                          ? chat.title!
+                          : "Группа";
+                      leadingIcon = Icons.group;
+                      avatarUrl = chat.baseIconUrl;
+                    } else {
+                      final myId = chat.ownerId;
+                      final otherParticipantId = chat.participantIds.firstWhere(
+                        (id) => id != myId,
+                        orElse: () => myId,
+                      );
+                      contact = widget.contacts[otherParticipantId];
+                      title = contact?.name ?? "Неизвестный";
+                      avatarUrl = contact?.photoBaseUrl;
+                      leadingIcon = Icons.person;
+                    }
+
+                    final isSelected = _selectedChatIds.contains(chat.id);
+
+                    return ListTile(
+                      leading: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          CircleAvatar(
+                            radius: 24,
+                            backgroundColor: colors.primaryContainer,
+                            backgroundImage: avatarUrl != null
+                                ? NetworkImage(avatarUrl)
+                                : null,
+                            child: avatarUrl == null
+                                ? (isSavedMessages || isGroupChat || isChannel)
+                                      ? Icon(
+                                          leadingIcon,
+                                          color: colors.onPrimaryContainer,
+                                        )
+                                      : Text(
+                                          title.isNotEmpty
+                                              ? title[0].toUpperCase()
+                                              : '?',
+                                          style: TextStyle(
+                                            color: colors.onPrimaryContainer,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        )
+                                : null,
+                          ),
+                        ],
+                      ),
+                      title: Text(title, style: const TextStyle(fontSize: 16)),
+                      subtitle: isGroupChat && chat.participantIds.length > 2
+                          ? Text(
+                              '${chat.participantIds.length} участников',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colors.onSurfaceVariant,
+                              ),
+                            )
+                          : null,
+                      trailing: Checkbox(
+                        value: isSelected,
+                        onChanged: (_) => _toggleChatSelection(chat),
+                      ),
+                      onTap: () => _toggleChatSelection(chat),
+                    );
+                  },
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(
+                      color: colors.outline.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _selectedChatIds.isEmpty
+                            ? 'Выберите чаты'
+                            : 'Выбрано: ${_selectedChatIds.length}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    FilledButton(
+                      onPressed: _addSelectedChats,
+                      child: const Text('Сохранить'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ReadSettingsDialogContent extends StatefulWidget {
+  final Chat chat;
+  final ChatReadSettings? initialSettings;
+  final bool globalReadOnAction;
+  final bool globalReadOnEnter;
+
+  const _ReadSettingsDialogContent({
+    required this.chat,
+    required this.initialSettings,
+    required this.globalReadOnAction,
+    required this.globalReadOnEnter,
+  });
+
+  @override
+  State<_ReadSettingsDialogContent> createState() =>
+      _ReadSettingsDialogContentState();
+}
+
+class _ReadSettingsDialogContentState
+    extends State<_ReadSettingsDialogContent> {
+  ChatReadSettings? _settings;
+  bool _useDefault = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _settings = widget.initialSettings;
+    _useDefault = widget.initialSettings == null;
+  }
+
+  String _getSelectedOption() {
+    if (_useDefault) {
+      return 'default';
+    }
+
+    if (_settings == null) {
+      return 'default';
+    }
+
+    if (_settings!.disabled) {
+      return 'disabled';
+    } else if (_settings!.readOnAction && _settings!.readOnEnter) {
+      return 'both';
+    } else if (_settings!.readOnAction) {
+      return 'action';
+    } else if (_settings!.readOnEnter) {
+      return 'enter';
+    }
+    return 'default';
+  }
+
+  Future<void> _setOption(String option) async {
+    setState(() {
+      if (option == 'default') {
+        _useDefault = true;
+        _settings = null;
+      } else {
+        _useDefault = false;
+        switch (option) {
+          case 'disabled':
+            _settings = ChatReadSettings(
+              readOnAction: false,
+              readOnEnter: false,
+              disabled: true,
+            );
+            break;
+          case 'action':
+            _settings = ChatReadSettings(
+              readOnAction: true,
+              readOnEnter: false,
+              disabled: false,
+            );
+            break;
+          case 'enter':
+            _settings = ChatReadSettings(
+              readOnAction: false,
+              readOnEnter: true,
+              disabled: false,
+            );
+            break;
+          case 'both':
+          default:
+            _settings = ChatReadSettings(
+              readOnAction: true,
+              readOnEnter: true,
+              disabled: false,
+            );
+            break;
+        }
+      }
+    });
+
+    if (_useDefault || _settings == null) {
+      await ChatReadSettingsService.instance.resetSettings(widget.chat.id);
+    } else {
+      await ChatReadSettingsService.instance.saveSettings(
+        widget.chat.id,
+        _settings!,
+      );
+    }
+
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  String _getDefaultDescription() {
+    final action = widget.globalReadOnAction ? 'при действиях' : '';
+    final enter = widget.globalReadOnEnter ? 'при входе' : '';
+
+    if (action.isNotEmpty && enter.isNotEmpty) {
+      return 'Чтение $action и $enter';
+    } else if (action.isNotEmpty) {
+      return 'Чтение $action';
+    } else if (enter.isNotEmpty) {
+      return 'Чтение $enter';
+    }
+    return 'Чтение отключено';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final selectedOption = _getSelectedOption();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: colors.onSurfaceVariant.withOpacity(0.4),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              'Настройки чтения сообщений',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: colors.onSurface,
+              ),
+            ),
+          ),
+          const Divider(),
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RadioListTile<String>(
+                    title: const Text('По умолчанию'),
+                    subtitle: Text(_getDefaultDescription()),
+                    value: 'default',
+                    groupValue: selectedOption,
+                    onChanged: (value) => _setOption(value!),
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Отключить чтение'),
+                    subtitle: const Text(
+                      'Сообщения не будут отмечаться как прочитанные',
+                    ),
+                    value: 'disabled',
+                    groupValue: selectedOption,
+                    onChanged: (value) => _setOption(value!),
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Чтение при действиях'),
+                    subtitle: const Text(
+                      'Отмечать прочитанным при отправке сообщения',
+                    ),
+                    value: 'action',
+                    groupValue: selectedOption,
+                    onChanged: (value) => _setOption(value!),
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Чтение при входе в чат'),
+                    subtitle: const Text(
+                      'Отмечать прочитанным при открытии чата',
+                    ),
+                    value: 'enter',
+                    groupValue: selectedOption,
+                    onChanged: (value) => _setOption(value!),
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Чтение при действиях и при входе'),
+                    subtitle: const Text(
+                      'Отмечать прочитанным при отправке и при открытии',
+                    ),
+                    value: 'both',
+                    groupValue: selectedOption,
+                    onChanged: (value) => _setOption(value!),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

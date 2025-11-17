@@ -14,6 +14,7 @@ import 'package:gwid/widgets/chat_message_bubble.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:gwid/services/chat_cache_service.dart';
 import 'package:gwid/services/avatar_cache_service.dart';
+import 'package:gwid/services/chat_read_settings_service.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:gwid/screens/group_settings_screen.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
@@ -451,8 +452,16 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     }
 
+    final readSettings = await ChatReadSettingsService.instance.getSettings(
+      widget.chatId,
+    );
     final theme = context.read<ThemeProvider>();
-    if (theme.debugReadOnEnter &&
+
+    final shouldReadOnEnter = readSettings != null
+        ? (!readSettings.disabled && readSettings.readOnEnter)
+        : theme.debugReadOnEnter;
+
+    if (shouldReadOnEnter &&
         _messages.isNotEmpty &&
         widget.onChatUpdated != null) {
       final lastMessageId = _messages.last.id;
@@ -793,7 +802,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final text = _textController.text.trim();
     if (text.isNotEmpty) {
       final theme = context.read<ThemeProvider>();
@@ -851,7 +860,15 @@ class _ChatScreenState extends State<ChatScreen> {
         cid: tempCid, // Передаем тот же CID в API
       );
 
-      if (theme.debugReadOnAction && _messages.isNotEmpty) {
+      final readSettings = await ChatReadSettingsService.instance.getSettings(
+        widget.chatId,
+      );
+
+      final shouldReadOnAction = readSettings != null
+          ? (!readSettings.disabled && readSettings.readOnAction)
+          : theme.debugReadOnAction;
+
+      if (shouldReadOnAction && _messages.isNotEmpty) {
         final lastMessageId = _messages.last.id;
         ApiService.instance.markMessageAsRead(widget.chatId, lastMessageId);
       }
