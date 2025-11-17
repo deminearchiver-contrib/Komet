@@ -5,7 +5,7 @@ import 'dart:math';
 
 class StorageScreen extends StatefulWidget {
   final bool isModal;
-  
+
   const StorageScreen({super.key, this.isModal = false});
 
   @override
@@ -28,14 +28,11 @@ class _StorageScreenState extends State<StorageScreen>
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-
                 _buildStorageChart(colors),
                 const SizedBox(height: 20),
-                
 
                 _buildStorageDetails(colors),
                 const SizedBox(height: 20),
-                
 
                 _buildActionButtons(colors),
               ],
@@ -85,15 +82,16 @@ class _StorageScreenState extends State<StorageScreen>
     final cacheSize = await _getDirectorySize(cacheDir);
     final totalSize = appSize + cacheSize;
 
-    final messagesSize = (totalSize * 0.4).round();
-    final mediaSize = (totalSize * 0.3).round();
-    final otherSize = totalSize - messagesSize - mediaSize;
+    final messagesSize = totalSize > 0 ? (totalSize * 0.3).round() : 0;
+    final mediaSize = totalSize > 0 ? (totalSize * 0.25).round() : 0;
+    final cacheSizeAdjusted = totalSize > 0 ? (totalSize * 0.2).round() : 0;
+    final otherSize = totalSize - messagesSize - mediaSize - cacheSizeAdjusted;
 
     return StorageInfo(
       totalSize: totalSize,
       messagesSize: messagesSize,
       mediaSize: mediaSize,
-      cacheSize: cacheSize,
+      cacheSize: cacheSizeAdjusted,
       otherSize: otherSize,
     );
   }
@@ -109,8 +107,8 @@ class _StorageScreenState extends State<StorageScreen>
         }
       }
     } catch (e) {
-
-      totalSize = Random().nextInt(50) * 1024 * 1024; // 0-50 MB
+      print('Ошибка при подсчете размера директории ${dir.path}: $e');
+      totalSize = 0; // В случае ошибки возвращаем 0
     }
     return totalSize;
   }
@@ -260,16 +258,13 @@ class _StorageScreenState extends State<StorageScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-
                   _buildStorageChart(colors),
 
                   const SizedBox(height: 32),
 
-
                   _buildStorageDetails(colors),
 
                   const SizedBox(height: 32),
-
 
                   _buildActionButtons(colors),
                 ],
@@ -283,7 +278,6 @@ class _StorageScreenState extends State<StorageScreen>
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
-
           GestureDetector(
             onTap: () => Navigator.of(context).pop(),
             child: Container(
@@ -292,7 +286,6 @@ class _StorageScreenState extends State<StorageScreen>
               color: Colors.black.withOpacity(0.3),
             ),
           ),
-          
 
           Center(
             child: Container(
@@ -312,7 +305,6 @@ class _StorageScreenState extends State<StorageScreen>
               ),
               child: Column(
                 children: [
-
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -346,7 +338,6 @@ class _StorageScreenState extends State<StorageScreen>
                       ],
                     ),
                   ),
-                  
 
                   Expanded(
                     child: _isLoading
@@ -355,14 +346,11 @@ class _StorageScreenState extends State<StorageScreen>
                             padding: const EdgeInsets.all(16),
                             child: Column(
                               children: [
-
                                 _buildStorageChart(colors),
                                 const SizedBox(height: 20),
-                                
 
                                 _buildStorageDetails(colors),
                                 const SizedBox(height: 20),
-                                
 
                                 _buildActionButtons(colors),
                               ],
@@ -406,7 +394,6 @@ class _StorageScreenState extends State<StorageScreen>
           ),
           const SizedBox(height: 24),
 
-
           AnimatedBuilder(
             animation: _animation,
             builder: (context, child) {
@@ -415,7 +402,6 @@ class _StorageScreenState extends State<StorageScreen>
                 height: 200,
                 child: Stack(
                   children: [
-
                     Container(
                       width: 200,
                       height: 200,
@@ -424,7 +410,6 @@ class _StorageScreenState extends State<StorageScreen>
                         color: colors.surfaceContainerHighest,
                       ),
                     ),
-
 
                     CustomPaint(
                       size: const Size(200, 200),
@@ -435,7 +420,6 @@ class _StorageScreenState extends State<StorageScreen>
                         animationValue: _animation.value,
                       ),
                     ),
-
 
                     Center(
                       child: Column(
@@ -466,7 +450,6 @@ class _StorageScreenState extends State<StorageScreen>
           ),
 
           const SizedBox(height: 24),
-
 
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -725,35 +708,32 @@ class StorageChartPainter extends CustomPainter {
 
     final paint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 24  // Увеличиваем толщину с 16 до 24
-      ..strokeCap = StrokeCap.round;
-
+      ..strokeWidth = 20
+      ..strokeCap = StrokeCap.butt;
 
     paint.color = colors.surfaceContainerHighest;
     canvas.drawCircle(center, radius, paint);
-    
+
     final totalSize = storageInfo.totalSize;
     if (totalSize > 0) {
-      double startAngle = -pi / 2;
-
-
       final messagesRatio = storageInfo.messagesSize / totalSize;
       final mediaRatio = storageInfo.mediaSize / totalSize;
       final cacheRatio = storageInfo.cacheSize / totalSize;
       final otherRatio = storageInfo.otherSize / totalSize;
 
+      double currentAngle = -pi / 2;
 
       if (messagesRatio > 0) {
         paint.color = Colors.blue;
         final sweepAngle = 2 * pi * messagesRatio * animationValue;
         canvas.drawArc(
           Rect.fromCircle(center: center, radius: radius),
-          startAngle,
+          currentAngle,
           sweepAngle,
           false,
           paint,
         );
-        startAngle += 2 * pi * messagesRatio; // Обновляем без анимации
+        currentAngle += sweepAngle;
       }
 
       if (mediaRatio > 0) {
@@ -761,12 +741,12 @@ class StorageChartPainter extends CustomPainter {
         final sweepAngle = 2 * pi * mediaRatio * animationValue;
         canvas.drawArc(
           Rect.fromCircle(center: center, radius: radius),
-          startAngle,
+          currentAngle,
           sweepAngle,
           false,
           paint,
         );
-        startAngle += 2 * pi * mediaRatio; // Обновляем без анимации
+        currentAngle += sweepAngle;
       }
 
       if (cacheRatio > 0) {
@@ -774,12 +754,12 @@ class StorageChartPainter extends CustomPainter {
         final sweepAngle = 2 * pi * cacheRatio * animationValue;
         canvas.drawArc(
           Rect.fromCircle(center: center, radius: radius),
-          startAngle,
+          currentAngle,
           sweepAngle,
           false,
           paint,
         );
-        startAngle += 2 * pi * cacheRatio; // Обновляем без анимации
+        currentAngle += sweepAngle;
       }
 
       if (otherRatio > 0) {
@@ -787,7 +767,7 @@ class StorageChartPainter extends CustomPainter {
         final sweepAngle = 2 * pi * otherRatio * animationValue;
         canvas.drawArc(
           Rect.fromCircle(center: center, radius: radius),
-          startAngle,
+          currentAngle,
           sweepAngle,
           false,
           paint,

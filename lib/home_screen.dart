@@ -180,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      final isAutoUpdateEnabled = prefs.getBool('auto_update_enabled') ?? true;
+      final isAutoUpdateEnabled = prefs.getBool('auto_update_enabled') ?? false;
       final showUpdateNotification =
           prefs.getBool('show_update_notification') ?? true;
 
@@ -640,7 +640,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      final isAutoUpdateEnabled = prefs.getBool('auto_update_enabled') ?? true;
+      final isAutoUpdateEnabled = prefs.getBool('auto_update_enabled') ?? false;
       final currentVersion = prefs.getString('spoof_appversion') ?? '0.0.0';
       final latestVersion = await VersionChecker.getLatestVersion();
 

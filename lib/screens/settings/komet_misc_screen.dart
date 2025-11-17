@@ -14,7 +14,7 @@ class KometMiscScreen extends StatefulWidget {
 
 class _KometMiscScreenState extends State<KometMiscScreen> {
   bool? _isBatteryOptimizationDisabled;
-  bool _isAutoUpdateEnabled = true;
+  bool _isAutoUpdateEnabled = false;
   bool _showUpdateNotification = true;
   bool _enableWebVersionCheck = false;
   bool _showSpoofUpdateDialog = true;
@@ -29,7 +29,7 @@ class _KometMiscScreenState extends State<KometMiscScreen> {
   Future<void> _loadUpdateSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _isAutoUpdateEnabled = prefs.getBool('auto_update_enabled') ?? true;
+      _isAutoUpdateEnabled = prefs.getBool('auto_update_enabled') ?? false;
       _showUpdateNotification =
           prefs.getBool('show_update_notification') ?? true;
       _enableWebVersionCheck =
