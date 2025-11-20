@@ -1,5 +1,3 @@
-
-
 import 'dart:async';
 import 'package:gwid/models/contact.dart';
 import 'package:gwid/models/message.dart';
@@ -12,23 +10,19 @@ class ChatCacheService {
 
   final CacheService _cacheService = CacheService();
 
-
   Future<void> initialize() async {
     await _cacheService.initialize();
     print('ChatCacheService инициализирован');
   }
-
 
   static const String _chatsKey = 'cached_chats';
   static const String _contactsKey = 'cached_contacts';
   static const String _messagesKey = 'cached_messages';
   static const String _chatMessagesKey = 'cached_chat_messages';
 
-
   static const Duration _chatsTTL = Duration(hours: 1);
   static const Duration _contactsTTL = Duration(hours: 6);
   static const Duration _messagesTTL = Duration(hours: 2);
-
 
   Future<void> cacheChats(List<Map<String, dynamic>> chats) async {
     try {
@@ -38,7 +32,6 @@ class ChatCacheService {
       print('Ошибка кэширования чатов: $e');
     }
   }
-
 
   Future<List<Map<String, dynamic>>?> getCachedChats() async {
     try {
@@ -54,7 +47,6 @@ class ChatCacheService {
     }
     return null;
   }
-
 
   Future<void> cacheContacts(List<Contact> contacts) async {
     try {
@@ -81,7 +73,6 @@ class ChatCacheService {
     }
   }
 
-
   Future<List<Contact>?> getCachedContacts() async {
     try {
       final cached = await _cacheService.get<List<dynamic>>(
@@ -96,7 +87,6 @@ class ChatCacheService {
     }
     return null;
   }
-
 
   Future<void> cacheChatMessages(int chatId, List<Message> messages) async {
     try {
@@ -125,7 +115,6 @@ class ChatCacheService {
     }
   }
 
-
   Future<List<Message>?> getCachedChatMessages(int chatId) async {
     try {
       final key = '$_chatMessagesKey$chatId';
@@ -142,24 +131,20 @@ class ChatCacheService {
     return null;
   }
 
-
   Future<void> addMessageToCache(int chatId, Message message) async {
     try {
       final cached = await getCachedChatMessages(chatId);
 
       if (cached != null) {
-
         final updatedMessages = [message, ...cached];
         await cacheChatMessages(chatId, updatedMessages);
       } else {
-
         await cacheChatMessages(chatId, [message]);
       }
     } catch (e) {
       print('Ошибка добавления сообщения в кэш: $e');
     }
   }
-
 
   Future<void> updateMessageInCache(int chatId, Message updatedMessage) async {
     try {
@@ -180,7 +165,6 @@ class ChatCacheService {
     }
   }
 
-
   Future<void> removeMessageFromCache(int chatId, String messageId) async {
     try {
       final cached = await getCachedChatMessages(chatId);
@@ -196,7 +180,6 @@ class ChatCacheService {
     }
   }
 
-
   Future<void> cacheChatInfo(int chatId, Map<String, dynamic> chatInfo) async {
     try {
       final key = 'chat_info_$chatId';
@@ -205,7 +188,6 @@ class ChatCacheService {
       print('Ошибка кэширования информации о чате $chatId: $e');
     }
   }
-
 
   Future<Map<String, dynamic>?> getCachedChatInfo(int chatId) async {
     try {
@@ -216,7 +198,6 @@ class ChatCacheService {
       return null;
     }
   }
-
 
   Future<void> cacheLastMessage(int chatId, Message? lastMessage) async {
     try {
@@ -243,7 +224,6 @@ class ChatCacheService {
     }
   }
 
-
   Future<Message?> getCachedLastMessage(int chatId) async {
     try {
       final key = 'last_message_$chatId';
@@ -261,7 +241,6 @@ class ChatCacheService {
     }
     return null;
   }
-
 
   Future<void> clearChatCache(int chatId) async {
     try {
@@ -281,21 +260,17 @@ class ChatCacheService {
     }
   }
 
-
   Future<void> clearAllChatCache() async {
     try {
       await _cacheService.remove(_chatsKey);
       await _cacheService.remove(_contactsKey);
       await _cacheService.remove(_messagesKey);
 
-
-
       print('Весь кэш чатов очищен');
     } catch (e) {
       print('Ошибка очистки всего кэша чатов: $e');
     }
   }
-
 
   Future<Map<String, dynamic>> getChatCacheStats() async {
     try {
@@ -313,7 +288,6 @@ class ChatCacheService {
       return {};
     }
   }
-
 
   Future<bool> isCacheValid(String cacheType) async {
     try {

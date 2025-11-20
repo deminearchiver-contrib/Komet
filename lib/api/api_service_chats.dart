@@ -170,15 +170,14 @@ extension ApiServiceChats on ApiService {
       };
       _lastChatsPayload = result;
 
-      final contacts =
-          contactListJson.map((json) => Contact.fromJson(json)).toList();
+      final contacts = contactListJson
+          .map((json) => Contact.fromJson(json))
+          .toList();
       updateContactCache(contacts);
       _lastChatsAt = DateTime.now();
       _preloadContactAvatars(contacts);
       unawaited(
-        _chatCacheService.cacheChats(
-          chatListJson.cast<Map<String, dynamic>>(),
-        ),
+        _chatCacheService.cacheChats(chatListJson.cast<Map<String, dynamic>>()),
       );
       unawaited(_chatCacheService.cacheContacts(contacts));
       return result;
@@ -204,9 +203,7 @@ extension ApiServiceChats on ApiService {
       }
     }
 
-    if (!force &&
-        !_chatsFetchedInThisSession &&
-        _lastChatsPayload == null) {
+    if (!force && !_chatsFetchedInThisSession && _lastChatsPayload == null) {
       final cachedChats = await _chatCacheService.getCachedChats();
       final cachedContacts = await _chatCacheService.getCachedContacts();
       if (cachedChats != null &&
@@ -393,15 +390,14 @@ extension ApiServiceChats on ApiService {
       };
       _lastChatsPayload = result;
 
-      final contacts =
-          contactListJson.map((json) => Contact.fromJson(json)).toList();
+      final contacts = contactListJson
+          .map((json) => Contact.fromJson(json))
+          .toList();
       updateContactCache(contacts);
       _lastChatsAt = DateTime.now();
       _preloadContactAvatars(contacts);
       unawaited(
-        _chatCacheService.cacheChats(
-          chatListJson.cast<Map<String, dynamic>>(),
-        ),
+        _chatCacheService.cacheChats(chatListJson.cast<Map<String, dynamic>>()),
       );
       unawaited(_chatCacheService.cacheContacts(contacts));
       _chatsFetchedInThisSession = true;
@@ -461,10 +457,13 @@ extension ApiServiceChats on ApiService {
     }
 
     if (!force) {
-      final cachedMessages =
-          await _chatCacheService.getCachedChatMessages(chatId);
+      final cachedMessages = await _chatCacheService.getCachedChatMessages(
+        chatId,
+      );
       if (cachedMessages != null && cachedMessages.isNotEmpty) {
-        print("История сообщений для чата $chatId загружена из ChatCacheService.");
+        print(
+          "История сообщений для чата $chatId загружена из ChatCacheService.",
+        );
         _messageCache[chatId] = cachedMessages;
         return cachedMessages;
       }
@@ -670,8 +669,7 @@ extension ApiServiceChats on ApiService {
     final prefs = await SharedPreferences.getInstance();
 
     final totalTraffic =
-        prefs.getDouble('network_total_traffic') ??
-        (150.0 * 1024 * 1024);
+        prefs.getDouble('network_total_traffic') ?? (150.0 * 1024 * 1024);
     final messagesTraffic =
         prefs.getDouble('network_messages_traffic') ?? (totalTraffic * 0.15);
     final mediaTraffic =
@@ -679,8 +677,7 @@ extension ApiServiceChats on ApiService {
     final syncTraffic =
         prefs.getDouble('network_sync_traffic') ?? (totalTraffic * 0.1);
 
-    final currentSpeed =
-        _isSessionOnline ? 512.0 * 1024 : 0.0;
+    final currentSpeed = _isSessionOnline ? 512.0 * 1024 : 0.0;
 
     final ping = 25;
 
@@ -1015,4 +1012,3 @@ extension ApiServiceChats on ApiService {
     }
   }
 }
-

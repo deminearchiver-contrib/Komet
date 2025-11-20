@@ -24,18 +24,12 @@ class Message {
   });
 
   factory Message.fromJson(Map<String, dynamic> json) {
-
-
-
-
     int senderId;
     if (json['sender'] is int) {
       senderId = json['sender'];
     } else {
-
       senderId = 0;
     }
-
 
     int time;
     if (json['time'] is int) {
@@ -45,7 +39,6 @@ class Message {
     }
 
     return Message(
-
       id:
           json['id']?.toString() ??
           'local_${DateTime.now().millisecondsSinceEpoch}',
@@ -96,18 +89,12 @@ class Message {
   bool get isReply => link != null && link!['type'] == 'REPLY';
   bool get isForwarded => link != null && link!['type'] == 'FORWARD';
 
-
-
-
-
-
   bool canEdit(int currentUserId) {
     if (isDeleted) return false;
     if (senderId != currentUserId) return false;
     if (attaches.isNotEmpty) {
       return false; // Нельзя редактировать сообщения с вложениями
     }
-
 
     final now = DateTime.now().millisecondsSinceEpoch;
     final messageTime = time;

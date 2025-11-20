@@ -9,11 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:gwid/api/api_service.dart';
 import 'package:uuid/uuid.dart';
 import 'package:gwid/device_presets.dart';
-import 'package:gwid/phone_entry_screen.dart';
-
 
 enum SpoofingMethod { partial, full }
-
 
 enum PresetCategory { web, device }
 
@@ -48,7 +45,6 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
     _loadInitialData();
   }
 
-
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
     final prefs = await SharedPreferences.getInstance();
@@ -80,7 +76,6 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
 
     setState(() => _isLoading = false);
   }
-
 
   Future<void> _loadDeviceData() async {
     setState(() => _isLoading = true);
@@ -129,7 +124,6 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
     });
   }
 
-
   Future<void> _applyGeneratedData() async {
     final List<DevicePreset> filteredPresets;
     if (_selectedCategory == PresetCategory.web) {
@@ -156,7 +150,6 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
     final preset = filteredPresets[_random.nextInt(filteredPresets.length)];
     await _applyPreset(preset);
   }
-
 
   Future<void> _applyPreset(DevicePreset preset) async {
     setState(() {
@@ -195,12 +188,10 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
     }
   }
 
-
   Future<void> _saveSpoofingSettings() async {
     if (!mounted) return;
 
     final prefs = await SharedPreferences.getInstance();
-
 
     final oldValues = {
       'user_agent': prefs.getString('spoof_useragent') ?? '',
@@ -227,7 +218,6 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
     final oldAppVersion = prefs.getString('spoof_appversion') ?? '25.10.10';
     final newAppVersion = _appVersionController.text;
 
-
     bool otherDataChanged = false;
     for (final key in oldValues.keys) {
       if (oldValues[key] != newValues[key]) {
@@ -238,43 +228,33 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
 
     final appVersionChanged = oldAppVersion != newAppVersion;
 
-
-
-
     if (appVersionChanged && !otherDataChanged) {
-
       await _saveAllData(prefs);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Настройки применятся при следующем входе в приложение.',
-            ),
+            content: Text('Перезайди!'),
             duration: Duration(seconds: 3),
           ),
         );
 
         Navigator.of(context).pop();
       }
-    }
-
-    else {
+    } else {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Применить настройки?'),
-          content: const Text(
-            'Для применения настроек потребуется перезайти в аккаунт. Вы уверены?',
-          ),
+          content: const Text('Нужно перезайти в приложение, ок?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Отмена'),
+              child: const Text('Не'),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Применить'),
+              child: const Text('Ок!'),
             ),
           ],
         ),
@@ -285,17 +265,23 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
       await _saveAllData(prefs);
 
       try {
+        await ApiService.instance.performFullReconnection();
+
         if (mounted) {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const PhoneEntryScreen()),
-            (route) => false,
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Настройки применены. Перезайдите в приложение.'),
+              backgroundColor: Colors.green,
+            ),
           );
+
+          Navigator.of(context).pop();
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Ошибка при выходе: $e'),
+              content: Text('Ошибка при применении настроек: $e'),
               backgroundColor: Theme.of(context).colorScheme.error,
             ),
           );
@@ -303,7 +289,6 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
       }
     }
   }
-
 
   Future<void> _saveAllData(SharedPreferences prefs) async {
     await prefs.setBool('spoofing_enabled', true);
@@ -376,7 +361,6 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -651,10 +635,8 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
                     'Версия приложения',
                     Icons.info_outline_rounded,
                   ).copyWith(
-
                     suffixIcon: _isCheckingVersion
                         ? const Padding(
-
                             padding: EdgeInsets.all(12.0),
                             child: SizedBox(
                               height: 24,
@@ -665,7 +647,6 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
                             ),
                           )
                         : IconButton(
-
                             icon: const Icon(Icons.cloud_sync_outlined),
                             tooltip: 'Проверить последнюю версию',
                             onPressed:
