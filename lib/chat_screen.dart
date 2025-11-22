@@ -1415,7 +1415,7 @@ class _ChatScreenState extends State<ChatScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Удалить чат'),
         content: Text(
-          'Вы уверены, что хотите удалить чат с ${_currentContact.name}? Это действие нельзя отменить.',
+          'Вы уверены, что хотите удалить чат с ${_currentContact.name}? Это действие нельзя отменить.', //1231231233
         ),
         actions: [
           TextButton(
