@@ -1,8 +1,7 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
+import 'dart:async';
 
 class FullScreenVideoPlayer extends StatefulWidget {
   final String videoUrl;
@@ -14,32 +13,46 @@ class FullScreenVideoPlayer extends StatefulWidget {
   State<FullScreenVideoPlayer> createState() => _FullScreenVideoPlayerState();
 }
 
-class _FullScreenVideoPlayerState extends State<FullScreenVideoPlayer> {
+class _FullScreenVideoPlayerState extends State<FullScreenVideoPlayer>
+    with SingleTickerProviderStateMixin {
   VideoPlayerController? _videoPlayerController;
-  ChewieController? _chewieController;
   bool _isLoading = true;
   bool _hasError = false;
+  bool _isPlaying = false;
   bool _showControls = true;
+  bool _isBuffering = false;
+  double _playbackSpeed = 1.0;
   Timer? _hideControlsTimer;
+  Timer? _positionTimer;
+  late AnimationController _controlsAnimationController;
+  late Animation<double> _controlsAnimation;
   bool _isDragging = false;
-  double _currentVolume = 1.0;
-  double _currentBrightness = 1.0;
-  bool _showVolumeIndicator = false;
-  bool _showBrightnessIndicator = false;
-  double _volumeIndicatorOpacity = 0.0;
-  double _brightnessIndicatorOpacity = 0.0;
-  Timer? _indicatorTimer;
+  Duration _currentPosition = Duration.zero;
+  Duration _totalDuration = Duration.zero;
+  List<DurationRange> _bufferedRanges = [];
 
   @override
   void initState() {
     super.initState();
-    _initializePlayer();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeRight,
       DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
       DeviceOrientation.portraitUp,
     ]);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
+    _controlsAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+
+    _controlsAnimation = CurvedAnimation(
+      parent: _controlsAnimationController,
+      curve: Curves.easeInOut,
+    );
+
+    _controlsAnimationController.forward();
+    _initializePlayer();
   }
 
   Future<void> _initializePlayer() async {
@@ -52,37 +65,22 @@ class _FullScreenVideoPlayerState extends State<FullScreenVideoPlayer> {
         },
       );
 
+      _videoPlayerController!.addListener(_videoListener);
       await _videoPlayerController!.initialize();
-
-      _chewieController = ChewieController(
-        videoPlayerController: _videoPlayerController!,
-        aspectRatio: _videoPlayerController!.value.aspectRatio,
-        autoPlay: true,
-        looping: false,
-        showControls: false, // Используем кастомные элементы управления
-        materialProgressColors: ChewieProgressColors(
-          playedColor: Colors.blueAccent,
-          handleColor: Colors.white,
-          backgroundColor: Colors.white.withOpacity(0.3),
-          bufferedColor: Colors.white.withOpacity(0.5),
-        ),
-        allowFullScreen: false,
-        allowMuting: true,
-        allowPlaybackSpeedChanging: true,
-        playbackSpeeds: [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0],
-      );
-
-      // Получаем текущую громкость
-      _currentVolume = _videoPlayerController!.value.volume;
+      _videoPlayerController!.play();
 
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _isPlaying = true;
+          _totalDuration = _videoPlayerController!.value.duration;
+          _currentPosition = _videoPlayerController!.value.position;
         });
         _startHideControlsTimer();
+        _startPositionTimer();
       }
     } catch (e) {
-      print('❌ [FullScreenVideoPlayer] Error initializing Chewie player: $e');
+      print('❌ [FullScreenVideoPlayer] Error initializing player: $e');
       if (mounted) {
         setState(() {
           _hasError = true;
@@ -92,81 +90,85 @@ class _FullScreenVideoPlayerState extends State<FullScreenVideoPlayer> {
     }
   }
 
+  void _videoListener() {
+    if (!mounted) return;
+
+    final controller = _videoPlayerController!;
+    setState(() {
+      _isPlaying = controller.value.isPlaying;
+      _isBuffering = controller.value.isBuffering;
+      _totalDuration = controller.value.duration;
+      _bufferedRanges = controller.value.buffered;
+      if (!_isDragging) {
+        _currentPosition = controller.value.position;
+      }
+    });
+  }
+
   void _startHideControlsTimer() {
     _hideControlsTimer?.cancel();
     _hideControlsTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted && !_isDragging) {
+      if (_isPlaying && !_isDragging) {
+        _hideControlsUI();
+      }
+    });
+  }
+
+  void _startPositionTimer() {
+    _positionTimer?.cancel();
+    _positionTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (!mounted || _isDragging) return;
+      if (_videoPlayerController != null &&
+          _videoPlayerController!.value.isInitialized) {
         setState(() {
-          _showControls = false;
+          _currentPosition = _videoPlayerController!.value.position;
         });
       }
     });
   }
 
-  void _toggleControls() {
+  void _showControlsUI() {
+    if (_showControls) return;
     setState(() {
-      _showControls = !_showControls;
+      _showControls = true;
     });
-    if (_showControls) {
-      _startHideControlsTimer();
-    } else {
-      _hideControlsTimer?.cancel();
-    }
+    _controlsAnimationController.forward();
+    _startHideControlsTimer();
+  }
+
+  void _hideControlsUI() {
+    if (!_showControls) return;
+    setState(() {
+      _showControls = false;
+    });
+    _controlsAnimationController.reverse();
   }
 
   void _togglePlayPause() {
-    if (_chewieController?.isPlaying ?? false) {
-      _chewieController?.pause();
-    } else {
-      _chewieController?.play();
-    }
-    _toggleControls();
-  }
-
-  void _displayVolumeIndicator(double volume) {
     setState(() {
-      _showVolumeIndicator = true;
-      _currentVolume = volume;
-      _volumeIndicatorOpacity = 1.0;
-    });
-    _indicatorTimer?.cancel();
-    _indicatorTimer = Timer(const Duration(milliseconds: 1500), () {
-      if (mounted) {
-        setState(() {
-          _volumeIndicatorOpacity = 0.0;
-        });
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (mounted) {
-            setState(() {
-              _showVolumeIndicator = false;
-            });
-          }
-        });
+      if (_isPlaying) {
+        _videoPlayerController!.pause();
+        _showControlsUI();
+      } else {
+        _videoPlayerController!.play();
+        _startHideControlsTimer();
       }
     });
   }
 
-  void _displayBrightnessIndicator(double brightness) {
+  Duration _clampDuration(Duration value, Duration min, Duration max) {
+    if (value < min) return min;
+    if (value > max) return max;
+    return value;
+  }
+
+  void _seekTo(Duration position) {
+    _videoPlayerController!.seekTo(position);
     setState(() {
-      _showBrightnessIndicator = true;
-      _currentBrightness = brightness;
-      _brightnessIndicatorOpacity = 1.0;
+      _currentPosition = position;
+      _isDragging = false;
     });
-    _indicatorTimer?.cancel();
-    _indicatorTimer = Timer(const Duration(milliseconds: 1500), () {
-      if (mounted) {
-        setState(() {
-          _brightnessIndicatorOpacity = 0.0;
-        });
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (mounted) {
-            setState(() {
-              _showBrightnessIndicator = false;
-            });
-          }
-        });
-      }
-    });
+    _startHideControlsTimer();
   }
 
   String _formatDuration(Duration duration) {
@@ -174,206 +176,253 @@ class _FullScreenVideoPlayerState extends State<FullScreenVideoPlayer> {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
     final seconds = duration.inSeconds.remainder(60);
+
     if (hours > 0) {
       return '${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}';
     }
     return '${twoDigits(minutes)}:${twoDigits(seconds)}';
   }
 
+  void _showSpeedMenu() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _SpeedBottomSheet(
+        currentSpeed: _playbackSpeed,
+        onSpeedSelected: (speed) {
+          setState(() {
+            _playbackSpeed = speed;
+            _videoPlayerController!.setPlaybackSpeed(speed);
+          });
+          Navigator.pop(context);
+          _showControlsUI();
+        },
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _hideControlsTimer?.cancel();
-    _indicatorTimer?.cancel();
+    _positionTimer?.cancel();
+    _videoPlayerController?.removeListener(_videoListener);
     _videoPlayerController?.dispose();
-    _chewieController?.dispose();
+    _controlsAnimationController.dispose();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
       backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // Видео плеер
-            Center(
-              child: _isLoading
-                  ? const Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(color: Colors.white),
-                        SizedBox(height: 20),
-                        Text(
-                          'Загрузка видео...',
-                          style: TextStyle(color: Colors.white70, fontSize: 14),
-                        ),
-                      ],
-                    )
-                  : _hasError
-                      ? Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.error_outline,
-                                color: Colors.red, size: 60),
-                            const SizedBox(height: 20),
-                            const Text(
-                              'Не удалось загрузить видео',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w500),
-                            ),
-                            const SizedBox(height: 10),
-                            const Text(
-                              'Проверьте интернет или попробуйте позже',
-                              style: TextStyle(color: Colors.white70, fontSize: 14),
-                            ),
-                            const SizedBox(height: 30),
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                setState(() {
-                                  _isLoading = true;
-                                  _hasError = false;
-                                });
-                                _initializePlayer();
-                              },
-                              icon: const Icon(Icons.refresh),
-                              label: const Text('Попробовать снова'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blueAccent,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 24, vertical: 12),
-                              ),
-                            ),
-                          ],
+      body: Stack(
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () {
+              if (_showControls) {
+                _hideControlsUI();
+              } else {
+                _showControlsUI();
+              }
+            },
+        onDoubleTapDown: (details) {
+          final screenWidth = MediaQuery.of(context).size.width;
+          if (details.globalPosition.dx < screenWidth / 2) {
+            final newPosition = _clampDuration(
+              _currentPosition - const Duration(seconds: 10),
+              Duration.zero,
+              _totalDuration,
+            );
+            _seekTo(newPosition);
+            _showControlsUI();
+          } else {
+            final newPosition = _clampDuration(
+              _currentPosition + const Duration(seconds: 10),
+              Duration.zero,
+              _totalDuration,
+            );
+            _seekTo(newPosition);
+            _showControlsUI();
+          }
+        },
+            child: Stack(
+              children: [
+                Center(
+                  child: _isLoading
+                      ? CircularProgressIndicator(
+                          color: colorScheme.primary,
                         )
-                      : _chewieController != null &&
-                              _chewieController!
-                                  .videoPlayerController.value.isInitialized
-                          ? GestureDetector(
-                              onTap: _toggleControls,
-                              onDoubleTap: _togglePlayPause,
-                              onVerticalDragUpdate: (details) {
-                                if (!_isDragging) {
-                                  _isDragging = true;
-                                  setState(() {
-                                    _showControls = true;
-                                  });
-                                }
-                                _hideControlsTimer?.cancel();
+                      : _hasError
+                          ? _ErrorWidget(colorScheme: colorScheme)
+                          : _videoPlayerController != null &&
+                                  _videoPlayerController!.value.isInitialized
+                              ? AspectRatio(
+                                  aspectRatio: _videoPlayerController!.value.aspectRatio,
+                                  child: VideoPlayer(_videoPlayerController!),
+                                )
+                              : const SizedBox(),
+                ),
 
-                                final delta = details.delta.dy;
-                                final screenHeight = MediaQuery.of(context).size.height;
-                                final change = -delta / screenHeight;
-
-                                // Левая сторона экрана - яркость
-                                if (details.globalPosition.dx <
-                                    MediaQuery.of(context).size.width / 2) {
-                                  final newBrightness = (_currentBrightness + change)
-                                      .clamp(0.0, 1.0);
-                                  _currentBrightness = newBrightness;
-                                  // Здесь можно изменить яркость экрана, но это требует системных разрешений
-                                  _displayBrightnessIndicator(newBrightness);
-                                } else {
-                                  // Правая сторона экрана - громкость
-                                  final newVolume = (_currentVolume + change).clamp(0.0, 1.0);
-                                  _videoPlayerController?.setVolume(newVolume);
-                                  _currentVolume = newVolume;
-                                  _displayVolumeIndicator(newVolume);
-                                }
-                              },
-                              onVerticalDragEnd: (_) {
-                                _isDragging = false;
-                                _startHideControlsTimer();
-                              },
-                              child: Chewie(controller: _chewieController!),
-                            )
-                          : const Center(
-                              child: Text(
-                                'Ошибка плеера',
-                                style: TextStyle(color: Colors.white),
-                              ),
+                if (_isBuffering)
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(
+                            color: colorScheme.primary,
+                            strokeWidth: 3,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Буферизация...',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
                             ),
-            ),
-
-            // Кастомные элементы управления
-            if (!_isLoading && !_hasError && _chewieController != null)
-              AnimatedOpacity(
-                opacity: _showControls ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 300),
-                child: _buildCustomControls(),
-              ),
-
-            // Индикатор громкости
-            if (_showVolumeIndicator)
-              Center(
-                child: AnimatedOpacity(
-                  opacity: _volumeIndicatorOpacity,
-                  duration: const Duration(milliseconds: 200),
-                  child: _buildVolumeIndicator(),
-                ),
-              ),
-
-            // Индикатор яркости
-            if (_showBrightnessIndicator)
-              Center(
-                child: AnimatedOpacity(
-                  opacity: _brightnessIndicatorOpacity,
-                  duration: const Duration(milliseconds: 200),
-                  child: _buildBrightnessIndicator(),
-                ),
-              ),
-
-            // Кнопка назад
-            if (_showControls && !_isLoading && !_hasError)
-              Positioned(
-                top: 10,
-                left: 10,
-                child: SafeArea(
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => Navigator.of(context).pop(),
-                      borderRadius: BorderRadius.circular(24),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.5),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back,
-                          color: Colors.white,
-                          size: 24,
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
+              ],
+            ),
+          ),
+          if (_showControls)
+            GestureDetector(
+              onDoubleTapDown: (details) {
+                final screenWidth = MediaQuery.of(context).size.width;
+                if (details.globalPosition.dx < screenWidth / 2) {
+                  final newPosition = _clampDuration(
+                    _currentPosition - const Duration(seconds: 10),
+                    Duration.zero,
+                    _totalDuration,
+                  );
+                  _seekTo(newPosition);
+                  _showControlsUI();
+                } else {
+                  final newPosition = _clampDuration(
+                    _currentPosition + const Duration(seconds: 10),
+                    Duration.zero,
+                    _totalDuration,
+                  );
+                  _seekTo(newPosition);
+                  _showControlsUI();
+                }
+              },
+              behavior: HitTestBehavior.translucent,
+              child: AnimatedBuilder(
+                animation: _controlsAnimation,
+                builder: (context, child) {
+                  return Opacity(
+                    opacity: _controlsAnimation.value,
+                    child: child,
+                  );
+                },
+                child: _VideoControls(
+                  colorScheme: colorScheme,
+                  isPlaying: _isPlaying,
+                  currentPosition: _currentPosition,
+                  totalDuration: _totalDuration,
+                  bufferedRanges: _bufferedRanges,
+                  playbackSpeed: _playbackSpeed,
+                  onPlayPause: _togglePlayPause,
+                  onSeek: (position) {
+                    setState(() {
+                      _isDragging = true;
+                      _currentPosition = position;
+                    });
+                  },
+                  onSeekEnd: (position) {
+                    _seekTo(position);
+                  },
+                  onBack: () => Navigator.pop(context),
+                  onSpeedTap: () {
+                    _showSpeedMenu();
+                  },
+                  onRewind: () {
+                    final newPosition = _clampDuration(
+                      _currentPosition - const Duration(seconds: 10),
+                      Duration.zero,
+                      _totalDuration,
+                    );
+                    _seekTo(newPosition);
+                    _showControlsUI();
+                  },
+                  onForward: () {
+                    final newPosition = _clampDuration(
+                      _currentPosition + const Duration(seconds: 10),
+                      Duration.zero,
+                      _totalDuration,
+                    );
+                    _seekTo(newPosition);
+                    _showControlsUI();
+                  },
+                  formatDuration: _formatDuration,
                 ),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
+}
 
-  Widget _buildCustomControls() {
-    if (_chewieController == null) return const SizedBox.shrink();
+class _VideoControls extends StatelessWidget {
+  final ColorScheme colorScheme;
+  final bool isPlaying;
+  final Duration currentPosition;
+  final Duration totalDuration;
+  final List<DurationRange> bufferedRanges;
+  final double playbackSpeed;
+  final VoidCallback onPlayPause;
+  final Function(Duration) onSeek;
+  final Function(Duration) onSeekEnd;
+  final VoidCallback onBack;
+  final VoidCallback onSpeedTap;
+  final VoidCallback onRewind;
+  final VoidCallback onForward;
+  final String Function(Duration) formatDuration;
 
-    final controller = _chewieController!;
-    final videoController = controller.videoPlayerController;
-    final isPlaying = controller.isPlaying;
-    final duration = videoController.value.duration;
-    final position = videoController.value.position;
+  const _VideoControls({
+    required this.colorScheme,
+    required this.isPlaying,
+    required this.currentPosition,
+    required this.totalDuration,
+    required this.bufferedRanges,
+    required this.playbackSpeed,
+    required this.onPlayPause,
+    required this.onSeek,
+    required this.onSeekEnd,
+    required this.onBack,
+    required this.onSpeedTap,
+    required this.onRewind,
+    required this.onForward,
+    required this.formatDuration,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = totalDuration.inMilliseconds > 0
+        ? currentPosition.inMilliseconds / totalDuration.inMilliseconds
+        : 0.0;
 
     return Container(
       decoration: BoxDecoration(
@@ -388,275 +437,498 @@ class _FullScreenVideoPlayerState extends State<FullScreenVideoPlayer> {
           ],
         ),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Верхняя панель
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                const Spacer(),
-                // Кнопка скорости воспроизведения
-                _buildSpeedButton(controller),
-                const SizedBox(width: 12),
-                // Кнопка полноэкранного режима
-                _buildFullScreenButton(),
-              ],
+      child: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: onBack,
+                    icon: const Icon(Icons.arrow_back),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.black.withOpacity(0.5),
+                      foregroundColor: Colors.white,
+                      shape: const CircleBorder(),
+                    ),
+                  ),
+                  const Spacer(),
+                  FilledButton.tonal(
+                    onPressed: onSpeedTap,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.black.withOpacity(0.5),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.speed, size: 18),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${playbackSpeed}x',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+            const Spacer(),
 
-          // Центральная кнопка воспроизведения/паузы
-          Center(
-            child: GestureDetector(
-              onTap: _togglePlayPause,
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  isPlaying ? Icons.pause : Icons.play_arrow,
+            // Прогресс-бар
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  _CustomProgressBar(
+                    progress: progress,
+                    currentPosition: currentPosition,
+                    totalDuration: totalDuration,
+                    bufferedRanges: bufferedRanges,
+                    onSeek: onSeek,
+                    onSeekEnd: onSeekEnd,
+                    colorScheme: colorScheme,
+                    formatDuration: formatDuration,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        formatDuration(currentPosition),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const Text(
+                        ' / ',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        formatDuration(totalDuration),
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _MaterialYouControlButton(
+                        icon: Icons.replay_10,
+                        onTap: onRewind,
+                        colorScheme: colorScheme,
+                        label: '-10',
+                      ),
+                      const SizedBox(width: 12),
+                      _MaterialYouControlButton(
+                        icon: isPlaying ? Icons.pause : Icons.play_arrow,
+                        onTap: onPlayPause,
+                        colorScheme: colorScheme,
+                        isPrimary: true,
+                      ),
+                      const SizedBox(width: 12),
+                      // Кнопка перемотки вперед
+                      _MaterialYouControlButton(
+                        icon: Icons.forward_10,
+                        onTap: onForward,
+                        colorScheme: colorScheme,
+                        label: '+10',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MaterialYouControlButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final ColorScheme colorScheme;
+  final String? label;
+  final bool isPrimary;
+
+  const _MaterialYouControlButton({
+    required this.icon,
+    required this.onTap,
+    required this.colorScheme,
+    this.label,
+    this.isPrimary = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isPrimary) {
+      return FilledButton(
+        onPressed: onTap,
+        style: FilledButton.styleFrom(
+          backgroundColor: colorScheme.primary,
+          foregroundColor: colorScheme.onPrimary,
+          padding: const EdgeInsets.all(20),
+          shape: const CircleBorder(),
+          minimumSize: const Size(72, 72),
+          elevation: 3,
+        ),
+        child: Icon(icon, size: 36),
+      );
+    } else {
+      return FilledButton.tonal(
+        onPressed: onTap,
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.white.withOpacity(0.16),
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.all(14),
+          shape: const CircleBorder(),
+          minimumSize: const Size(60, 60),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 26),
+            if (label != null) ...[
+              const SizedBox(height: 2),
+              Text(
+                label!,
+                style: const TextStyle(
                   color: Colors.white,
-                  size: 48,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  height: 1.0,
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+  }
+}
+
+class _CustomProgressBar extends StatefulWidget {
+  final double progress;
+  final Duration currentPosition;
+  final Duration totalDuration;
+  final List<DurationRange> bufferedRanges;
+  final Function(Duration) onSeek;
+  final Function(Duration) onSeekEnd;
+  final ColorScheme colorScheme;
+  final String Function(Duration) formatDuration;
+
+  const _CustomProgressBar({
+    required this.progress,
+    required this.currentPosition,
+    required this.totalDuration,
+    required this.bufferedRanges,
+    required this.onSeek,
+    required this.onSeekEnd,
+    required this.colorScheme,
+    required this.formatDuration,
+  });
+
+  @override
+  State<_CustomProgressBar> createState() => _CustomProgressBarState();
+}
+
+class _CustomProgressBarState extends State<_CustomProgressBar> {
+  bool _isDragging = false;
+  double _dragProgress = 0.0;
+
+  Duration _getPositionFromLocalPosition(Offset localPosition, Size size) {
+    final progress = (localPosition.dx / size.width).clamp(0.0, 1.0);
+    return Duration(
+      milliseconds: (progress * widget.totalDuration.inMilliseconds).round(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = _isDragging ? _dragProgress : widget.progress;
+    final currentPos = Duration(
+      milliseconds: (progress * widget.totalDuration.inMilliseconds).round(),
+    );
+
+    return GestureDetector(
+      onPanStart: (details) {
+        setState(() {
+          _isDragging = true;
+        });
+        final box = context.findRenderObject() as RenderBox;
+        final localPosition = box.globalToLocal(details.globalPosition);
+        _dragProgress = (localPosition.dx / box.size.width).clamp(0.0, 1.0);
+        final position = _getPositionFromLocalPosition(localPosition, box.size);
+        widget.onSeek(position);
+      },
+      onPanUpdate: (details) {
+        final box = context.findRenderObject() as RenderBox;
+        final localPosition = box.globalToLocal(details.globalPosition);
+        setState(() {
+          _dragProgress = (localPosition.dx / box.size.width).clamp(0.0, 1.0);
+        });
+        final position = _getPositionFromLocalPosition(localPosition, box.size);
+        widget.onSeek(position);
+      },
+      onPanEnd: (details) {
+        setState(() {
+          _isDragging = false;
+        });
+        widget.onSeekEnd(currentPos);
+      },
+      onTapDown: (details) {
+        if (_isDragging) return;
+        final box = context.findRenderObject() as RenderBox;
+        final localPosition = box.globalToLocal(details.globalPosition);
+        final position = _getPositionFromLocalPosition(localPosition, box.size);
+        widget.onSeekEnd(position);
+      },
+      child: Container(
+        height: 48,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final containerWidth = constraints.maxWidth;
+            
+            return Stack(
+              children: [
+                Center(
+                  child: Container(
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                if (widget.totalDuration.inMilliseconds > 0)
+                  ...widget.bufferedRanges.map((range) {
+                    final startProgress = (range.start.inMilliseconds / widget.totalDuration.inMilliseconds).clamp(0.0, 1.0);
+                    final endProgress = (range.end.inMilliseconds / widget.totalDuration.inMilliseconds).clamp(0.0, 1.0);
+                    final bufferedWidth = (endProgress - startProgress).clamp(0.0, 1.0);
+                    
+                    if (bufferedWidth <= 0) return const SizedBox.shrink();
+                    
+                    final leftOffset = startProgress * containerWidth;
+                    final bufferedWidthPx = bufferedWidth * containerWidth;
+                    
+                    return Positioned(
+                      left: leftOffset,
+                      top: 22,
+                      child: Container(
+                        width: bufferedWidthPx,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.5),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+            Center(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FractionallySizedBox(
+                  widthFactor: progress,
+                  child: Container(
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: widget.colorScheme.primary,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-
-          // Нижняя панель управления
-          Container(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                // Прогресс бар
-                VideoProgressIndicator(
-                  videoController,
-                  allowScrubbing: true,
-                  colors: VideoProgressColors(
-                    playedColor: Colors.blueAccent,
-                    bufferedColor: Colors.white.withOpacity(0.3),
-                    backgroundColor: Colors.white.withOpacity(0.2),
+            // Ползунок
+            Center(
+              child: Align(
+                alignment: Alignment(progress * 2 - 1, 0),
+                child: Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: widget.colorScheme.primary,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                // Время и кнопки управления
-                Row(
-                  children: [
-                    // Кнопка перемотки назад
-                    IconButton(
-                      icon: const Icon(Icons.replay_10, color: Colors.white),
-                      onPressed: () {
-                        final newPosition = position - const Duration(seconds: 10);
-                        final clampedPosition = newPosition < Duration.zero
-                            ? Duration.zero
-                            : (newPosition > duration ? duration : newPosition);
-                        videoController.seekTo(clampedPosition);
-                      },
+              ),
+            ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _SpeedBottomSheet extends StatelessWidget {
+  final double currentSpeed;
+  final Function(double) onSpeedSelected;
+
+  const _SpeedBottomSheet({
+    required this.currentSpeed,
+    required this.onSpeedSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final speeds = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.dialogBackgroundColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey[400],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                children: [
+                  Text(
+                    'Скорость воспроизведения',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
-                    // Время
-                    Text(
-                      '${_formatDuration(position)} / ${_formatDuration(duration)}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: speeds.map((speed) {
+                final isSelected = speed == currentSpeed;
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => onSpeedSelected(speed),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? colorScheme.primaryContainer
+                            : colorScheme.surfaceVariant,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${speed}x',
+                        style: TextStyle(
+                          color: isSelected
+                              ? colorScheme.onPrimaryContainer
+                              : colorScheme.onSurfaceVariant,
+                          fontSize: 16,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                        ),
                       ),
                     ),
-                    const Spacer(),
-                    // Кнопка перемотки вперед
-                    IconButton(
-                      icon: const Icon(Icons.forward_10, color: Colors.white),
-                      onPressed: () {
-                        final newPosition = position + const Duration(seconds: 10);
-                        final clampedPosition = newPosition < Duration.zero
-                            ? Duration.zero
-                            : (newPosition > duration ? duration : newPosition);
-                        videoController.seekTo(clampedPosition);
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    // Кнопка громкости
-                    _buildVolumeButton(controller),
-                  ],
-                ),
-              ],
+                  ),
+                );
+              }).toList(),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSpeedButton(ChewieController controller) {
-    final speed = controller.videoPlayerController.value.playbackSpeed;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          final speeds = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
-          final currentIndex = speeds.indexOf(speed);
-          final nextIndex = (currentIndex + 1) % speeds.length;
-          controller.videoPlayerController.setPlaybackSpeed(speeds[nextIndex]);
-          setState(() {});
-        },
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.5),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            '${speed}x',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+            const SizedBox(height: 24),
+          ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildFullScreenButton() {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          // Переключение ориентации
-          if (MediaQuery.of(context).orientation == Orientation.portrait) {
-            SystemChrome.setPreferredOrientations([
-              DeviceOrientation.landscapeLeft,
-              DeviceOrientation.landscapeRight,
-            ]);
-          } else {
-            SystemChrome.setPreferredOrientations([
-              DeviceOrientation.portraitUp,
-            ]);
-          }
-        },
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.5),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Icon(
-            MediaQuery.of(context).orientation == Orientation.portrait
-                ? Icons.fullscreen
-                : Icons.fullscreen_exit,
-            color: Colors.white,
-            size: 24,
-          ),
+class _ErrorWidget extends StatelessWidget {
+  final ColorScheme colorScheme;
+
+  const _ErrorWidget({required this.colorScheme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: colorScheme.errorContainer,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.error_outline,
+                color: colorScheme.onErrorContainer,
+                size: 48,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Не удалось загрузить видео',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Проверьте подключение к интернету\nили попробуйте позже',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
+              ),
+            ),
+          ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildVolumeButton(ChewieController controller) {
-    final isMuted = controller.videoPlayerController.value.volume == 0;
-    return IconButton(
-      icon: Icon(
-        isMuted ? Icons.volume_off : Icons.volume_up,
-        color: Colors.white,
-      ),
-      onPressed: () {
-        if (isMuted) {
-          controller.videoPlayerController.setVolume(_currentVolume > 0 ? _currentVolume : 0.5);
-        } else {
-          controller.videoPlayerController.setVolume(0);
-        }
-        setState(() {});
-      },
-    );
-  }
-
-  Widget _buildVolumeIndicator() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            _currentVolume == 0
-                ? Icons.volume_off
-                : _currentVolume < 0.5
-                    ? Icons.volume_down
-                    : Icons.volume_up,
-            color: Colors.white,
-            size: 32,
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: 200,
-            child: LinearProgressIndicator(
-              value: _currentVolume,
-              backgroundColor: Colors.white.withOpacity(0.3),
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.blueAccent),
-              minHeight: 4,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${(_currentVolume * 100).toInt()}%',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBrightnessIndicator() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            _currentBrightness < 0.3
-                ? Icons.brightness_2
-                : _currentBrightness < 0.7
-                    ? Icons.brightness_medium
-                    : Icons.brightness_high,
-            color: Colors.white,
-            size: 32,
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: 200,
-            child: LinearProgressIndicator(
-              value: _currentBrightness,
-              backgroundColor: Colors.white.withOpacity(0.3),
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.amber),
-              minHeight: 4,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${(_currentBrightness * 100).toInt()}%',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
       ),
     );
   }
