@@ -26,7 +26,8 @@ class ControlMessageChip extends StatelessWidget {
     );
 
     final eventType = controlAttach['event'];
-    final senderName = contacts[message.senderId]?.name ?? 'Неизвестный';
+    final senderName =
+        contacts[message.senderId]?.name ?? 'ID ${message.senderId}';
     final isMe = message.senderId == myId;
     final senderDisplayName = isMe ? 'Вы' : senderName;
 
@@ -297,7 +298,14 @@ class MessagePreviewDialog {
         orElse: () => myId,
       );
       final contact = contacts[otherParticipantId];
-      return contact?.name ?? "Неизвестный чат";
+
+      if (contact != null) {
+        return contact.name;
+      } else if (chat.title?.isNotEmpty == true) {
+        return chat.title!;
+      } else {
+        return "ID $otherParticipantId";
+      }
     }
   }
 
@@ -544,7 +552,8 @@ class MessagePreviewDialog {
                                     contacts[message.senderId];
                                 final senderName = isMe
                                     ? 'Вы'
-                                    : (senderContact?.name ?? 'Неизвестный');
+                                    : (senderContact?.name ??
+                                          'ID ${message.senderId}');
 
                                 String? forwardedFrom;
                                 String? forwardedFromAvatarUrl;

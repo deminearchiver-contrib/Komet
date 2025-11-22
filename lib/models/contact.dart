@@ -31,10 +31,11 @@ class Contact {
 
   factory Contact.fromJson(Map<String, dynamic> json) {
     final nameData = json['names']?[0];
+    final userId = json['id'] as int;
 
     String finalFirstName = '';
     String finalLastName = '';
-    String finalName = 'Unknown';
+    String finalName = 'ID $userId';
 
     if (nameData != null) {
       finalFirstName = nameData['firstName'] ?? '';
@@ -42,9 +43,8 @@ class Contact {
       final fullName = '$finalFirstName $finalLastName'.trim();
       finalName = fullName.isNotEmpty
           ? fullName
-          : (nameData['name'] ?? 'Unknown');
+          : (nameData['name'] ?? 'ID $userId');
     }
-
 
     final status = json['status'];
     final isBlocked = status == 'BLOCKED';

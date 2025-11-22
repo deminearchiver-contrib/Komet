@@ -283,10 +283,12 @@ class ChatMessageBubble extends StatelessWidget {
         if (originalSenderId != null && cache != null) {
           final originalSenderContact = cache[originalSenderId];
           forwardedSenderName =
-              originalSenderContact?.name ?? 'Участник $originalSenderId';
+              originalSenderContact?.name ?? 'ID $originalSenderId';
           forwardedSenderAvatarUrl ??= originalSenderContact?.photoBaseUrl;
+        } else if (originalSenderId != null) {
+          forwardedSenderName = 'ID $originalSenderId';
         } else {
-          forwardedSenderName = 'Неизвестный';
+          forwardedSenderName = 'Пользователь';
         }
       }
     }
@@ -613,8 +615,8 @@ class ChatMessageBubble extends StatelessWidget {
                   child: Text(
                     replySenderId != null
                         ? (contactDetailsCache?[replySenderId]?.name ??
-                              'Участник $replySenderId')
-                        : 'Неизвестный',
+                              'ID $replySenderId')
+                        : 'Пользователь',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
@@ -1294,7 +1296,7 @@ class ChatMessageBubble extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.only(left: 2.0, bottom: 2.0),
                         child: Text(
-                          senderName ?? 'Неизвестный',
+                          senderName!,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: _getUserColor(
@@ -3623,7 +3625,7 @@ class ChatMessageBubble extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.only(left: 2.0, bottom: 2.0),
               child: Text(
-                senderName ?? 'Неизвестный',
+                senderName!,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: _getUserColor(

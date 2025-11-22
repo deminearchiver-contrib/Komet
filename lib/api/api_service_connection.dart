@@ -363,11 +363,15 @@ extension ApiServiceConnection on ApiService {
             );
             _startHealthMonitoring();
 
-            if (_onlineCompleter != null && !_onlineCompleter!.isCompleted) {
-              _onlineCompleter!.complete();
-            }
             _startPinging();
             _processMessageQueue();
+
+            if (authToken != null && !_chatsFetchedInThisSession) {
+              print(
+                "Токен найден, автоматически запускаем авторизацию (opcode 19)...",
+              );
+              unawaited(_sendAuthRequestAfterHandshake());
+            }
           }
 
           if (decodedMessage is Map && decodedMessage['cmd'] == 3) {
@@ -670,8 +674,6 @@ extension ApiServiceConnection on ApiService {
     _onlineCompleter = Completer<void>();
     _chatsFetchedInThisSession = false;
 
-    clearAllCaches();
-
     _currentUrlIndex = 0;
 
     _reconnectDelaySeconds = (_reconnectDelaySeconds * 2).clamp(1, 30);
@@ -721,7 +723,6 @@ extension ApiServiceConnection on ApiService {
     _currentUrlIndex = 0;
     _onlineCompleter = Completer<void>();
 
-    clearAllCaches();
     _messageQueue.clear();
     _presenceData.clear();
 

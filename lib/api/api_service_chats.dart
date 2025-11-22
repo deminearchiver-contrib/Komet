@@ -1,6 +1,119 @@
 part of 'api_service.dart';
 
 extension ApiServiceChats on ApiService {
+  Future<void> _sendAuthRequestAfterHandshake() async {
+    if (authToken == null) {
+      print("Токен не найден, пропускаем автоматическую авторизацию");
+      return;
+    }
+
+    if (_chatsFetchedInThisSession) {
+      print("Авторизация уже выполнена в этой сессии, пропускаем");
+      return;
+    }
+
+    try {
+      await _ensureCacheServicesInitialized();
+
+      final prefs = await SharedPreferences.getInstance();
+      final deviceId =
+          prefs.getString('spoof_deviceid') ?? generateRandomDeviceId();
+
+      if (prefs.getString('spoof_deviceid') == null) {
+        await prefs.setString('spoof_deviceid', deviceId);
+      }
+
+      final payload = {
+        "chatsCount": 100,
+        "chatsSync": 0,
+        "contactsSync": 0,
+        "draftsSync": 0,
+        "interactive": true,
+        "presenceSync": 0,
+        "token": authToken,
+      };
+
+      if (userId != null) {
+        payload["userId"] = userId;
+      }
+
+      print("Автоматически отправляем opcode 19 для авторизации...");
+      final int chatSeq = _sendMessage(19, payload);
+      final chatResponse = await messages.firstWhere(
+        (msg) => msg['seq'] == chatSeq,
+      );
+
+      if (chatResponse['cmd'] == 1) {
+        print("✅ Авторизация (opcode 19) успешна. Сессия ГОТОВА.");
+        _isSessionReady = true;
+
+        _connectionStatusController.add("ready");
+        _updateConnectionState(
+          conn_state.ConnectionState.ready,
+          message: 'Авторизация успешна',
+        );
+
+        final profile = chatResponse['payload']?['profile'];
+        final contactProfile = profile?['contact'];
+
+        if (contactProfile != null && contactProfile['id'] != null) {
+          print(
+            "[_sendAuthRequestAfterHandshake] ✅ Профиль и ID пользователя найдены. ID: ${contactProfile['id']}. ЗАПУСКАЕМ АНАЛИТИКУ.",
+          );
+          _userId = contactProfile['id'];
+          _sessionId = DateTime.now().millisecondsSinceEpoch;
+          _lastActionTime = _sessionId;
+
+          sendNavEvent('COLD_START');
+
+          _sendInitialSetupRequests();
+        }
+
+        if (_onlineCompleter != null && !_onlineCompleter!.isCompleted) {
+          _onlineCompleter!.complete();
+        }
+
+        final chatListJson = chatResponse['payload']?['chats'] ?? [];
+        final contactListJson = chatResponse['payload']?['contacts'] ?? [];
+        final presence = chatResponse['payload']?['presence'];
+        final config = chatResponse['payload']?['config'];
+
+        if (presence != null) {
+          updatePresenceData(presence);
+        }
+
+        if (config != null) {
+          _processServerPrivacyConfig(config);
+        }
+
+        final result = {
+          'chats': chatListJson,
+          'contacts': contactListJson,
+          'profile': profile,
+          'presence': presence,
+          'config': config,
+        };
+        _lastChatsPayload = result;
+
+        final contacts = contactListJson
+            .map((json) => Contact.fromJson(json))
+            .toList();
+        updateContactCache(contacts);
+        _lastChatsAt = DateTime.now();
+        _preloadContactAvatars(contacts);
+        unawaited(
+          _chatCacheService.cacheChats(
+            chatListJson.cast<Map<String, dynamic>>(),
+          ),
+        );
+        unawaited(_chatCacheService.cacheContacts(contacts));
+        _chatsFetchedInThisSession = true;
+      }
+    } catch (e) {
+      print("Ошибка при автоматической авторизации: $e");
+    }
+  }
+
   void createGroup(String name, List<int> participantIds) {
     final payload = {"name": name, "participantIds": participantIds};
     _sendMessage(48, payload);
@@ -357,21 +470,28 @@ extension ApiServiceChats on ApiService {
         return result;
       }
 
-      final contactIds = <int>{};
-      for (var chatJson in chatListJson) {
-        final participants = chatJson['participants'] as Map<String, dynamic>;
-        contactIds.addAll(participants.keys.map((id) => int.parse(id)));
+      List<dynamic> contactListJson =
+          chatResponse['payload']?['contacts'] ?? [];
+
+      if (contactListJson.isEmpty) {
+        final contactIds = <int>{};
+        for (var chatJson in chatListJson) {
+          final participants =
+              chatJson['participants'] as Map<String, dynamic>? ?? {};
+          contactIds.addAll(participants.keys.map((id) => int.parse(id)));
+        }
+
+        if (contactIds.isNotEmpty) {
+          final int contactSeq = _sendMessage(32, {
+            "contactIds": contactIds.toList(),
+          });
+          final contactResponse = await messages.firstWhere(
+            (msg) => msg['seq'] == contactSeq,
+          );
+
+          contactListJson = contactResponse['payload']?['contacts'] ?? [];
+        }
       }
-
-      final int contactSeq = _sendMessage(32, {
-        "contactIds": contactIds.toList(),
-      });
-      final contactResponse = await messages.firstWhere(
-        (msg) => msg['seq'] == contactSeq,
-      );
-
-      final List<dynamic> contactListJson =
-          contactResponse['payload']?['contacts'] ?? [];
 
       if (presence != null) {
         updatePresenceData(presence);

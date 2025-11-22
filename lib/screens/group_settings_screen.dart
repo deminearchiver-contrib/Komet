@@ -40,7 +40,6 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
     super.initState();
     _currentContact = widget.initialContact;
 
-
     _contactSubscription = ApiService.instance.contactUpdates.listen((contact) {
       if (contact.id == _currentContact.id && mounted) {
         ApiService.instance.updateCachedContact(contact);
@@ -50,16 +49,13 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
       }
     });
 
-
     _membersSubscription = ApiService.instance.messages.listen((message) {
       if (message['type'] == 'group_members' && mounted) {
         _handleGroupMembersResponse(message['payload']);
       }
     });
 
-
     _loadMembersFromCache();
-
 
     if (_loadedMembers.length < 50) {
       _loadedMembers.clear();
@@ -69,7 +65,6 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
       ApiService.instance.getGroupMembers(widget.chatId, marker: 0, count: 50);
       _isLoadingMembers = true;
     } else {
-
       _lastMarker = _loadedMembers.isNotEmpty
           ? _loadedMembers.last['id'] as int?
           : null;
@@ -80,7 +75,6 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
         'DEBUG: Участники загружены из кэша, marker: $_lastMarker, hasMore: $_hasMoreMembers',
       );
     }
-
 
     _scrollController.addListener(_onScroll);
   }
@@ -108,7 +102,6 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
       print('DEBUG: Чат не найден в кэше');
       return;
     }
-
 
     List<dynamic> membersRaw = [];
     if (currentChat['members'] is List) {
@@ -162,31 +155,6 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
       count: 50,
     );
   }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   void _handleGroupMembersResponse(Map<String, dynamic> payload) {
     print(
@@ -383,7 +351,6 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                 ),
               ),
             );
-
           }
         },
       ),
@@ -426,7 +393,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
         if (contact != null) {
           removableMembers.add({
             'id': id,
-            'name': contact['names']?[0]?['name'] ?? 'Неизвестный',
+            'name': contact['names']?[0]?['name'] ?? 'ID $id',
             'contact': contact,
           });
         }
@@ -456,7 +423,6 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                 content: Text('Удалено ${selectedMembers.length} участников'),
               ),
             );
-
           }
         },
       ),
@@ -499,7 +465,7 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
         if (contact != null) {
           promotableMembers.add({
             'id': id,
-            'name': contact['names']?[0]?['name'] ?? 'Неизвестный',
+            'name': contact['names']?[0]?['name'] ?? 'ID $id',
             'contact': contact,
           });
         }
@@ -553,7 +519,6 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
                 ApiService.instance.leaveGroup(widget.chatId);
 
                 if (mounted) {
-
                   Navigator.of(context)
                     ..pop()
                     ..pop();
@@ -708,7 +673,6 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
   Widget _buildGroupManagementButtons() {
     final colorScheme = Theme.of(context).colorScheme;
 
-
     bool amIAdmin = false;
     final currentChat = _getCurrentGroupChat();
     if (currentChat != null) {
@@ -777,7 +741,6 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
             const SizedBox(height: 8),
           ],
 
-
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
@@ -837,12 +800,12 @@ class _GroupSettingsScreenState extends State<GroupSettingsScreen> {
             final fullName = '$firstName $lastName'.trim();
             name = fullName.isNotEmpty
                 ? fullName
-                : (nameData['name'] as String? ?? 'Неизвестный');
+                : (nameData['name'] as String? ?? 'ID $id');
           }
         }
       }
       if (name == null || name.isEmpty) {
-        name = 'Неизвестный';
+        name = 'ID $id';
       }
       avatarUrl =
           contact?['baseUrl'] as String? ?? contact?['baseRawUrl'] as String?;
@@ -1050,7 +1013,8 @@ class _AddMemberDialogState extends State<_AddMemberDialog> {
           itemBuilder: (context, index) {
             final contact = widget.contacts[index];
             final contactId = contact['id'] as int;
-            final contactName = contact['names']?[0]?['name'] ?? 'Неизвестный';
+            final contactName =
+                contact['names']?[0]?['name'] ?? 'ID $contactId';
             final isSelected = _selectedContacts.contains(contactId);
 
             return CheckboxListTile(

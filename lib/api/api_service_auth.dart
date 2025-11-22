@@ -190,7 +190,6 @@ extension ApiServiceAuth on ApiService {
       authToken = currentAccount.token;
       userId = currentAccount.userId;
 
-      _messageCache.clear();
       _messageQueue.clear();
       _lastChatsPayload = null;
       _chatsFetchedInThisSession = false;
@@ -257,4 +256,3 @@ extension ApiServiceAuth on ApiService {
     }
   }
 }
-

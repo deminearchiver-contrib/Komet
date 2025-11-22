@@ -21,7 +21,7 @@ class ChatCacheService {
   static const String _chatMessagesKey = 'cached_chat_messages';
 
   static const Duration _chatsTTL = Duration(hours: 1);
-  static const Duration _contactsTTL = Duration(hours: 6);
+  static const Duration _contactsTTL = Duration(hours: 24);
   static const Duration _messagesTTL = Duration(hours: 2);
 
   Future<void> cacheChats(List<Map<String, dynamic>> chats) async {
@@ -54,22 +54,32 @@ class ChatCacheService {
           .map(
             (contact) => {
               'id': contact.id,
-              'name': contact.name,
-              'firstName': contact.firstName,
-              'lastName': contact.lastName,
+              'names': [
+                {
+                  'name': contact.name,
+                  'firstName': contact.firstName,
+                  'lastName': contact.lastName,
+                  'type': 'ONEME',
+                },
+              ],
               'photoBaseUrl': contact.photoBaseUrl,
+              'baseUrl': contact.photoBaseUrl,
               'isBlocked': contact.isBlocked,
               'isBlockedByMe': contact.isBlockedByMe,
               'accountStatus': contact.accountStatus,
               'status': contact.status,
+              'options': contact.options,
+              'description': contact.description,
             },
           )
           .toList();
 
       await _cacheService.set(_contactsKey, contactsData, ttl: _contactsTTL);
-      print('Кэшировано ${contacts.length} контактов');
+      print(
+        '✅ Кэшировано ${contacts.length} контактов (глобально) с описаниями',
+      );
     } catch (e) {
-      print('Ошибка кэширования контактов: $e');
+      print('❌ Ошибка кэширования контактов: $e');
     }
   }
 
@@ -80,10 +90,65 @@ class ChatCacheService {
         ttl: _contactsTTL,
       );
       if (cached != null) {
-        return cached.map((data) => Contact.fromJson(data)).toList();
+        final contacts = cached.map((data) => Contact.fromJson(data)).toList();
+        print('✅ Загружено ${contacts.length} контактов из глобального кэша');
+        return contacts;
       }
     } catch (e) {
-      print('Ошибка получения кэшированных контактов: $e');
+      print('❌ Ошибка получения кэшированных контактов: $e');
+    }
+    return null;
+  }
+
+  // Кэширование контактов для конкретного чата
+  Future<void> cacheChatContacts(int chatId, List<Contact> contacts) async {
+    try {
+      final key = 'chat_contacts_$chatId';
+      final contactsData = contacts
+          .map(
+            (contact) => {
+              'id': contact.id,
+              'names': [
+                {
+                  'name': contact.name,
+                  'firstName': contact.firstName,
+                  'lastName': contact.lastName,
+                  'type': 'ONEME',
+                },
+              ],
+              'photoBaseUrl': contact.photoBaseUrl,
+              'baseUrl': contact.photoBaseUrl,
+              'isBlocked': contact.isBlocked,
+              'isBlockedByMe': contact.isBlockedByMe,
+              'accountStatus': contact.accountStatus,
+              'status': contact.status,
+              'options': contact.options,
+              'description': contact.description,
+            },
+          )
+          .toList();
+
+      await _cacheService.set(key, contactsData, ttl: _contactsTTL);
+      print('✅ Кэшировано ${contacts.length} контактов для чата $chatId');
+    } catch (e) {
+      print('❌ Ошибка кэширования контактов для чата $chatId: $e');
+    }
+  }
+
+  Future<List<Contact>?> getCachedChatContacts(int chatId) async {
+    try {
+      final key = 'chat_contacts_$chatId';
+      final cached = await _cacheService.get<List<dynamic>>(
+        key,
+        ttl: _contactsTTL,
+      );
+      if (cached != null) {
+        final contacts = cached.map((data) => Contact.fromJson(data)).toList();
+        print('✅ Загружено ${contacts.length} контактов из кэша чата $chatId');
+        return contacts;
+      }
+    } catch (e) {
+      print('❌ Ошибка получения кэшированных контактов для чата $chatId: $e');
     }
     return null;
   }
@@ -248,13 +313,14 @@ class ChatCacheService {
         '$_chatMessagesKey$chatId',
         'chat_info_$chatId',
         'last_message_$chatId',
+        'chat_contacts_$chatId',
       ];
 
       for (final key in keys) {
         await _cacheService.remove(key);
       }
 
-      print('Кэш для чата $chatId очищен');
+      print('Кэш для чата $chatId очищен (включая контакты)');
     } catch (e) {
       print('Ошибка очистки кэша для чата $chatId: $e');
     }

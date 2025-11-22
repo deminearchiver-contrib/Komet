@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gwid/services/avatar_cache_service.dart';
 
-
-
-
 class UserProfilePanel extends StatefulWidget {
   final int userId;
   final String? name;
@@ -37,16 +34,16 @@ class UserProfilePanel extends StatefulWidget {
 class _UserProfilePanelState extends State<UserProfilePanel> {
   final ScrollController _nameScrollController = ScrollController();
 
-
-
   String get _displayName {
     if (widget.firstName != null || widget.lastName != null) {
       final firstName = widget.firstName ?? '';
       final lastName = widget.lastName ?? '';
       final fullName = '$firstName $lastName'.trim();
-      return fullName.isNotEmpty ? fullName : (widget.name ?? 'Неизвестный');
+      return fullName.isNotEmpty
+          ? fullName
+          : (widget.name ?? 'ID ${widget.userId}');
     }
-    return widget.name ?? 'Неизвестный';
+    return widget.name ?? 'ID ${widget.userId}';
   }
 
   @override
@@ -107,122 +104,6 @@ class _UserProfilePanelState extends State<UserProfilePanel> {
     _nameScrollController.dispose();
     super.dispose();
   }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   @override
   Widget build(BuildContext context) {

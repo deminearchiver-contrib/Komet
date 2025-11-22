@@ -164,12 +164,165 @@ class _ChatScreenState extends State<ChatScreen> {
       if (contacts.isNotEmpty && mounted) {
         final contact = contacts.first;
         _contactDetailsCache[contact.id] = contact;
+
+        final allChatContacts = _contactDetailsCache.values.toList();
+        await ChatCacheService().cacheChatContacts(
+          widget.chatId,
+          allChatContacts,
+        );
+
         setState(() {});
       }
     } catch (e) {
       print('Ошибка загрузки контакта $contactId: $e');
     } finally {
       _loadingContactIds.remove(contactId);
+    }
+  }
+
+  Future<void> _loadGroupParticipants() async {
+    try {
+      print(
+        '🔍 [_loadGroupParticipants] Начинаем загрузку участников группы...',
+      );
+
+      final chatData = ApiService.instance.lastChatsPayload;
+      if (chatData == null) {
+        print('❌ [_loadGroupParticipants] chatData == null');
+        return;
+      }
+
+      final chats = chatData['chats'] as List<dynamic>?;
+      if (chats == null) {
+        print('❌ [_loadGroupParticipants] chats == null');
+        return;
+      }
+
+      print(
+        '🔍 [_loadGroupParticipants] Ищем чат с ID ${widget.chatId} среди ${chats.length} чатов...',
+      );
+
+      final currentChat = chats.firstWhere(
+        (chat) => chat['id'] == widget.chatId,
+        orElse: () => null,
+      );
+
+      if (currentChat == null) {
+        print('❌ [_loadGroupParticipants] Чат с ID ${widget.chatId} не найден');
+        return;
+      }
+
+      print(
+        '✅ [_loadGroupParticipants] Чат найден: ${currentChat['title'] ?? 'Без названия'}',
+      );
+
+      final participants = currentChat['participants'] as Map<String, dynamic>?;
+      if (participants == null || participants.isEmpty) {
+        print('❌ [_loadGroupParticipants] Список участников пуст');
+        return;
+      }
+
+      print(
+        '🔍 [_loadGroupParticipants] Найдено ${participants.length} участников в чате',
+      );
+
+      final participantIds = participants.keys
+          .map((id) => int.tryParse(id))
+          .where((id) => id != null)
+          .cast<int>()
+          .toList();
+
+      if (participantIds.isEmpty) {
+        print('❌ [_loadGroupParticipants] participantIds пуст после парсинга');
+        return;
+      }
+
+      print(
+        '🔍 [_loadGroupParticipants] Обрабатываем ${participantIds.length} ID участников...',
+      );
+      print(
+        '🔍 [_loadGroupParticipants] IDs: ${participantIds.take(10).join(', ')}${participantIds.length > 10 ? '...' : ''}',
+      );
+
+      final idsToFetch = participantIds
+          .where((id) => !_contactDetailsCache.containsKey(id))
+          .toList();
+
+      print(
+        '🔍 [_loadGroupParticipants] В кэше уже есть: ${participantIds.length - idsToFetch.length} контактов',
+      );
+      print(
+        '🔍 [_loadGroupParticipants] Нужно загрузить: ${idsToFetch.length} контактов',
+      );
+
+      if (idsToFetch.isEmpty) {
+        print('✅ [_loadGroupParticipants] Все участники уже в кэше');
+        return;
+      }
+
+      print(
+        '📡 [_loadGroupParticipants] Загружаем информацию о ${idsToFetch.length} участниках...',
+      );
+      print(
+        '📡 [_loadGroupParticipants] IDs для загрузки: ${idsToFetch.take(10).join(', ')}${idsToFetch.length > 10 ? '...' : ''}',
+      );
+
+      final contacts = await ApiService.instance.fetchContactsByIds(idsToFetch);
+
+      print(
+        '📦 [_loadGroupParticipants] Получено ${contacts.length} контактов от API из ${idsToFetch.length} запрошенных',
+      );
+
+      if (contacts.isNotEmpty) {
+        for (final contact in contacts) {
+          print('  📇 Контакт: ${contact.name} (ID: ${contact.id})');
+        }
+
+        if (mounted) {
+          setState(() {
+            for (final contact in contacts) {
+              _contactDetailsCache[contact.id] = contact;
+            }
+          });
+
+          await ChatCacheService().cacheChatContacts(widget.chatId, contacts);
+
+          print(
+            '✅ [_loadGroupParticipants] Загружено и сохранено ${contacts.length} контактов',
+          );
+          print(
+            '✅ [_loadGroupParticipants] Всего в кэше теперь: ${_contactDetailsCache.length} контактов',
+          );
+
+          if (contacts.length < idsToFetch.length) {
+            final receivedIds = contacts.map((c) => c.id).toSet();
+            final missingIds = idsToFetch
+                .where((id) => !receivedIds.contains(id))
+                .toList();
+            print(
+              '⚠️ [_loadGroupParticipants] Не получены данные для ${missingIds.length} контактов из ${idsToFetch.length} запрошенных',
+            );
+            print(
+              '⚠️ [_loadGroupParticipants] Отсутствующие ID: ${missingIds.take(10).join(', ')}${missingIds.length > 10 ? '...' : ''}',
+            );
+          }
+        } else {
+          print(
+            '⚠️ [_loadGroupParticipants] Widget не mounted, контакты не сохранены',
+          );
+        }
+      } else {
+        print('❌ [_loadGroupParticipants] API вернул ПУСТОЙ список контактов!');
+        print(
+          '❌ [_loadGroupParticipants] Было запрошено ${idsToFetch.length} ID',
+        );
+        print(
+          '❌ [_loadGroupParticipants] Запрошенные ID: ${idsToFetch.take(10).join(', ')}${idsToFetch.length > 10 ? '...' : ''}',
+        );
+      }
+    } catch (e, stackTrace) {
+      print('❌ [_loadGroupParticipants] Ошибка загрузки участников группы: $e');
+      print('❌ [_loadGroupParticipants] StackTrace: $stackTrace');
     }
   }
 
@@ -185,6 +338,13 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _initializeChat() async {
     await _loadCachedContacts();
 
+    if (!widget.isGroupChat && !widget.isChannel) {
+      _contactDetailsCache[widget.contact.id] = widget.contact;
+      print(
+        '✅ [_initializeChat] Собеседник добавлен в кэш: ${widget.contact.name} (ID: ${widget.contact.id})',
+      );
+    }
+
     final profileData = ApiService.instance.lastChatsPayload?['profile'];
     final contactProfile = profileData?['contact'] as Map<String, dynamic>?;
 
@@ -193,9 +353,32 @@ class _ChatScreenState extends State<ChatScreen> {
         contactProfile['id'] != 0) {
       _actualMyId = contactProfile['id'];
       print('✅ ID пользователя успешно получен из ApiService: $_actualMyId');
+
+      try {
+        final myContact = Contact.fromJson(contactProfile);
+        _contactDetailsCache[_actualMyId!] = myContact;
+        print(
+          '✅ [_initializeChat] Собственный профиль добавлен в кэш: ${myContact.name} (ID: $_actualMyId)',
+        );
+      } catch (e) {
+        print(
+          '⚠️ [_initializeChat] Не удалось добавить собственный профиль в кэш: $e',
+        );
+      }
     } else {
       _actualMyId = widget.myId;
       print('ПРЕДУПРЕЖДЕНИЕ: Используется ID из виджета: $_actualMyId');
+    }
+
+    if (!widget.isGroupChat && !widget.isChannel) {
+      final contactsToCache = _contactDetailsCache.values.toList();
+      await ChatCacheService().cacheChatContacts(
+        widget.chatId,
+        contactsToCache,
+      );
+      print(
+        '✅ [_initializeChat] Сохранено ${contactsToCache.length} контактов в кэш чата (включая собственный профиль)',
+      );
     }
 
     if (mounted) {
@@ -395,6 +578,11 @@ class _ChatScreenState extends State<ChatScreen> {
       if (!mounted) return;
       _messages.clear();
       _messages.addAll(cachedMessages);
+
+      if (widget.isGroupChat) {
+        await _loadGroupParticipants();
+      }
+
       _buildChatItems();
       setState(() {
         _isLoadingHistory = false;
@@ -427,7 +615,17 @@ class _ChatScreenState extends State<ChatScreen> {
       final idsToFetch = senderIds
           .where((id) => !_contactDetailsCache.containsKey(id))
           .toList();
+
       if (idsToFetch.isNotEmpty) {
+        print(
+          '📡 [_paginateInitialLoad] Загружаем ${idsToFetch.length} отсутствующих контактов из ${senderIds.length} отправителей...',
+        );
+        print(
+          '📡 [_paginateInitialLoad] В кэше: ${senderIds.length - idsToFetch.length}, нужно загрузить: ${idsToFetch.length}',
+        );
+        print(
+          '📡 [_paginateInitialLoad] IDs для загрузки: ${idsToFetch.take(10).join(', ')}${idsToFetch.length > 10 ? '...' : ''}',
+        );
         final newContacts = await ApiService.instance.fetchContactsByIds(
           idsToFetch,
         );
@@ -435,9 +633,28 @@ class _ChatScreenState extends State<ChatScreen> {
         for (final contact in newContacts) {
           _contactDetailsCache[contact.id] = contact;
         }
+
+        if (newContacts.isNotEmpty) {
+          final allChatContacts = _contactDetailsCache.values.toList();
+          await ChatCacheService().cacheChatContacts(
+            widget.chatId,
+            allChatContacts,
+          );
+          print(
+            '✅ [_paginateInitialLoad] Обновлен кэш: ${allChatContacts.length} контактов для чата ${widget.chatId}',
+          );
+        }
+      } else {
+        print(
+          '✅ [_paginateInitialLoad] Все ${senderIds.length} отправителей уже в кэше',
+        );
       }
 
       await chatCacheService.cacheChatMessages(widget.chatId, allMessages);
+
+      if (widget.isGroupChat) {
+        await _loadGroupParticipants();
+      }
 
       final page = _anyOptimize ? _optPage : _pageSize;
       final slice = allMessages.length > page
@@ -1587,14 +1804,30 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _loadCachedContacts() async {
+    final chatContacts = await ChatCacheService().getCachedChatContacts(
+      widget.chatId,
+    );
+    if (chatContacts != null && chatContacts.isNotEmpty) {
+      for (final contact in chatContacts) {
+        _contactDetailsCache[contact.id] = contact;
+      }
+      print(
+        '✅ Загружено ${_contactDetailsCache.length} контактов из кэша чата ${widget.chatId}',
+      );
+      return;
+    }
+
+    // Если нет кэша чата, загружаем глобальный кэш
     final cachedContacts = await ChatCacheService().getCachedContacts();
     if (cachedContacts != null && cachedContacts.isNotEmpty) {
       for (final contact in cachedContacts) {
         _contactDetailsCache[contact.id] = contact;
       }
       print(
-        '✅ Кэш контактов для экрана чата заполнен из ChatCacheService: ${_contactDetailsCache.length} контактов.',
+        '✅ Загружено ${_contactDetailsCache.length} контактов из глобального кэша',
       );
+    } else {
+      print('⚠️ Кэш контактов пуст, будет загружено с сервера');
     }
   }
 
@@ -1746,9 +1979,12 @@ class _ChatScreenState extends State<ChatScreen> {
                               if (shouldShowName) {
                                 final senderContact =
                                     _contactDetailsCache[message.senderId];
-                                senderName =
-                                    senderContact?.name ??
-                                    'Участник ${message.senderId}';
+                                if (senderContact != null) {
+                                  senderName = senderContact.name;
+                                } else {
+                                  senderName = 'ID ${message.senderId}';
+                                  _loadContactIfNeeded(message.senderId);
+                                }
                               }
                             }
                             final hasPhoto = item.message.attaches.any(
@@ -4144,7 +4380,8 @@ class _AddMemberDialogState extends State<_AddMemberDialog> {
           itemBuilder: (context, index) {
             final contact = widget.contacts[index];
             final contactId = contact['id'] as int;
-            final contactName = contact['names']?[0]?['name'] ?? 'Неизвестный';
+            final contactName =
+                contact['names']?[0]?['name'] ?? 'ID $contactId';
             final isSelected = _selectedContacts.contains(contactId);
 
             return CheckboxListTile(
@@ -4316,7 +4553,8 @@ class _ControlMessageChip extends StatelessWidget {
     );
 
     final eventType = controlAttach['event'];
-    final senderName = contacts[message.senderId]?.name ?? 'Неизвестный';
+    final senderName =
+        contacts[message.senderId]?.name ?? 'ID ${message.senderId}';
     final isMe = message.senderId == myId;
     final senderDisplayName = isMe ? 'Вы' : senderName;
 
@@ -4506,18 +4744,41 @@ class _ControlMessageChip extends StatelessWidget {
   }
 }
 
-void openUserProfileById(BuildContext context, int userId) {
-  final contact = ApiService.instance.getCachedContact(userId);
+Future<void> openUserProfileById(BuildContext context, int userId) async {
+  var contact = ApiService.instance.getCachedContact(userId);
+
+  if (contact == null) {
+    print(
+      '⚠️ [openUserProfileById] Контакт $userId не найден в кэше, загружаем с сервера...',
+    );
+
+    try {
+      final contacts = await ApiService.instance.fetchContactsByIds([userId]);
+      if (contacts.isNotEmpty) {
+        contact = contacts.first;
+        print(
+          '✅ [openUserProfileById] Контакт $userId загружен: ${contact.name}',
+        );
+      } else {
+        print(
+          '❌ [openUserProfileById] Сервер не вернул данные для контакта $userId',
+        );
+      }
+    } catch (e) {
+      print('❌ [openUserProfileById] Ошибка загрузки контакта $userId: $e');
+    }
+  }
 
   if (contact != null) {
-    final isGroup = contact.id < 0; // Groups have negative IDs
+    final contactData = contact;
+    final isGroup = contactData.id < 0;
 
     if (isGroup) {
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (context) => GroupProfileDraggableDialog(contact: contact),
+        builder: (context) => GroupProfileDraggableDialog(contact: contactData),
       );
     } else {
       Navigator.of(context).push(
@@ -4525,7 +4786,7 @@ void openUserProfileById(BuildContext context, int userId) {
           opaque: false,
           barrierColor: Colors.transparent,
           pageBuilder: (context, animation, secondaryAnimation) {
-            return ContactProfileDialog(contact: contact);
+            return ContactProfileDialog(contact: contactData);
           },
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);
@@ -4538,12 +4799,12 @@ void openUserProfileById(BuildContext context, int userId) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Профиль пользователя $userId'),
-        content: Text('Информация о пользователе не найдена в кэше'),
+        title: const Text('Ошибка'),
+        content: Text('Не удалось загрузить информацию о пользователе $userId'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('OK'),
+            child: const Text('OK'),
           ),
         ],
       ),

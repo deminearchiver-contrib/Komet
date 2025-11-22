@@ -22,10 +22,11 @@ class Channel {
   factory Channel.fromJson(Map<String, dynamic> json) {
     final names = json['names'] as List<dynamic>?;
     final nameData = names?.isNotEmpty == true ? names![0] : null;
+    final channelId = json['id'] as int;
 
     return Channel(
-      id: json['id'] as int,
-      name: nameData?['name'] as String? ?? 'Неизвестный канал',
+      id: channelId,
+      name: nameData?['name'] as String? ?? 'ID $channelId',
       description: nameData?['description'] as String?,
       photoBaseUrl: json['baseUrl'] as String?,
       link: json['link'] as String?,

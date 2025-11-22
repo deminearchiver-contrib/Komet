@@ -80,6 +80,7 @@ class _ChatsScreenState extends State<ChatsScreen>
   List<SearchResult> _searchResults = [];
   String _searchFilter = 'all';
   bool _hasRequestedBlockedContacts = false;
+  final Set<int> _loadingContactIds = {};
 
   List<ChatFolder> _folders = [];
   String? _selectedFolderId;
@@ -1503,6 +1504,30 @@ class _ChatsScreenState extends State<ChatsScreen>
     }
   }
 
+  Future<void> _loadMissingContact(int contactId) async {
+    if (_loadingContactIds.contains(contactId) ||
+        _contacts.containsKey(contactId)) {
+      return;
+    }
+
+    _loadingContactIds.add(contactId);
+
+    try {
+      final contacts = await ApiService.instance.fetchContactsByIds([
+        contactId,
+      ]);
+      if (contacts.isNotEmpty && mounted) {
+        setState(() {
+          _contacts[contactId] = contacts.first;
+        });
+      }
+    } catch (e) {
+      print('Ошибка загрузки контакта $contactId: $e');
+    } finally {
+      _loadingContactIds.remove(contactId);
+    }
+  }
+
   String _formatTimestamp(int timestamp) {
     final dt = DateTime.fromMillisecondsSinceEpoch(timestamp);
     final now = DateTime.now();
@@ -2343,12 +2368,13 @@ class _ChatsScreenState extends State<ChatsScreen>
           final bool isSavedMessages = _isSavedMessages(chat);
 
           final Contact? contact;
+          int? otherParticipantId;
           if (isSavedMessages) {
             contact = _contacts[chat.ownerId];
           } else if (isGroupChat) {
             contact = null;
           } else {
-            final otherParticipantId = chat.participantIds.firstWhere(
+            otherParticipantId = chat.participantIds.firstWhere(
               (id) => id != chat.ownerId,
               orElse: () => 0,
             );
@@ -2360,11 +2386,23 @@ class _ChatsScreenState extends State<ChatsScreen>
             child: GestureDetector(
               onTap: () {
                 final bool isChannel = chat.type == 'CHANNEL';
-                final String title = isGroupChat
-                    ? (chat.title?.isNotEmpty == true ? chat.title! : "Группа")
-                    : (isSavedMessages
-                          ? "Избранное"
-                          : contact?.name ?? "Unknown");
+                String title;
+                if (isGroupChat) {
+                  title = chat.title?.isNotEmpty == true
+                      ? chat.title!
+                      : "Группа";
+                } else if (isSavedMessages) {
+                  title = "Избранное";
+                } else if (contact != null) {
+                  title = contact.name;
+                } else if (chat.title?.isNotEmpty == true) {
+                  title = chat.title!;
+                } else {
+                  title = "ID ${otherParticipantId ?? 0}";
+                  if (otherParticipantId != null && otherParticipantId != 0) {
+                    _loadMissingContact(otherParticipantId);
+                  }
+                }
                 final String? avatarUrl = isGroupChat
                     ? chat.baseIconUrl
                     : (isSavedMessages ? null : contact?.photoBaseUrl);
@@ -2512,7 +2550,12 @@ class _ChatsScreenState extends State<ChatsScreen>
                         : Text(
                             isSavedMessages
                                 ? "Избранное"
-                                : (contact?.name ?? 'Unknown'),
+                                : (contact?.name ??
+                                      (chat.title?.isNotEmpty == true
+                                          ? chat.title!
+                                          : (otherParticipantId != null
+                                                ? 'ID $otherParticipantId'
+                                                : 'ID 0'))),
                             style: TextStyle(
                               fontSize: 11,
                               color: colors.onSurface,
@@ -3779,7 +3822,14 @@ class _ChatsScreenState extends State<ChatsScreen>
       );
       contact = _contacts[otherParticipantId];
 
-      title = contact?.name ?? "Неизвестный чат";
+      if (contact != null) {
+        title = contact.name;
+      } else if (chat.title?.isNotEmpty == true) {
+        title = chat.title!;
+      } else {
+        title = "ID $otherParticipantId";
+        _loadMissingContact(otherParticipantId);
+      }
       avatarUrl = contact?.photoBaseUrl;
       leadingIcon = Icons.person;
     }
@@ -4479,7 +4529,14 @@ class _AddChatsToFolderDialogState extends State<_AddChatsToFolderDialog> {
                         orElse: () => myId,
                       );
                       contact = widget.contacts[otherParticipantId];
-                      title = contact?.name ?? "Неизвестный";
+
+                      if (contact != null) {
+                        title = contact.name;
+                      } else if (chat.title?.isNotEmpty == true) {
+                        title = chat.title!;
+                      } else {
+                        title = "ID $otherParticipantId";
+                      }
                       avatarUrl = contact?.photoBaseUrl;
                       leadingIcon = Icons.person;
                     }

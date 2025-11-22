@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'dart:math';
+import 'package:gwid/api/api_service.dart';
 
 class StorageScreen extends StatefulWidget {
   final bool isModal;
@@ -114,12 +115,39 @@ class _StorageScreenState extends State<StorageScreen>
   }
 
   Future<void> _clearCache() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Очистить кэш'),
+        content: const Text(
+          'Это действие очистит весь кэш приложения, включая кэш сообщений, медиафайлов и аватаров. '
+          'Это действие нельзя отменить.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.orange),
+            child: const Text('Очистить'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
     try {
+      ApiService.instance.clearAllCaches();
+
       final cacheDir = await getTemporaryDirectory();
       if (await cacheDir.exists()) {
         await cacheDir.delete(recursive: true);
         await cacheDir.create();
       }
+
       await _loadStorageInfo();
 
       if (mounted) {

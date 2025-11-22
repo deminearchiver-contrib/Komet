@@ -23,7 +23,9 @@ class PinnedMessageWidget extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final senderName =
         contacts[pinnedMessage.senderId]?.name ??
-        (pinnedMessage.senderId == myId ? 'Вы' : 'Неизвестный');
+        (pinnedMessage.senderId == myId
+            ? 'Вы'
+            : 'ID ${pinnedMessage.senderId}');
 
     return Container(
       margin: const EdgeInsets.only(left: 8, right: 8, top: 4, bottom: 0),
