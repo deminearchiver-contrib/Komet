@@ -371,6 +371,14 @@ extension ApiServiceConnection on ApiService {
                 "Токен найден, автоматически запускаем авторизацию (opcode 19)...",
               );
               unawaited(_sendAuthRequestAfterHandshake());
+            } else if (authToken == null) {
+              print(
+                "Токен не найден, завершаем ожидание для неавторизованной сессии",
+              );
+              _isSessionReady = true;
+              if (_onlineCompleter != null && !_onlineCompleter!.isCompleted) {
+                _onlineCompleter!.complete();
+              }
             }
           }
 
