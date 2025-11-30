@@ -6,32 +6,31 @@ import 'package:flutter/scheduler.dart';
 import 'package:intl/intl.dart';
 import 'package:gwid/api/api_service.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:gwid/chat_screen.dart';
-import 'package:gwid/manage_account_screen.dart';
+import 'package:gwid/screens/chat_screen.dart';
+import 'package:gwid/screens/manage_account_screen.dart';
 import 'package:gwid/screens/settings/settings_screen.dart';
-import 'package:gwid/phone_entry_screen.dart';
+import 'package:gwid/screens/phone_entry_screen.dart';
 import 'package:gwid/models/chat.dart';
 import 'package:gwid/models/contact.dart';
 import 'package:gwid/models/message.dart';
 import 'package:gwid/models/profile.dart';
 import 'package:gwid/models/chat_folder.dart';
-import 'package:gwid/theme_provider.dart';
+import 'package:gwid/utils/theme_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:gwid/join_group_screen.dart';
-import 'package:gwid/search_contact_screen.dart';
-import 'package:gwid/channels_list_screen.dart';
+import 'package:gwid/screens/join_group_screen.dart';
+import 'package:gwid/screens/search_contact_screen.dart';
+import 'package:gwid/screens/channels_list_screen.dart';
 import 'package:gwid/models/channel.dart';
-import 'package:gwid/search_channels_screen.dart';
-import 'package:gwid/downloads_screen.dart';
-import 'package:gwid/user_id_lookup_screen.dart';
+import 'package:gwid/screens/search_channels_screen.dart';
+import 'package:gwid/screens/downloads_screen.dart';
+import 'package:gwid/utils/user_id_lookup_screen.dart';
 import 'package:gwid/screens/music_library_screen.dart';
 import 'package:gwid/widgets/message_preview_dialog.dart';
 import 'package:gwid/services/chat_read_settings_service.dart';
 import 'package:gwid/services/local_profile_manager.dart';
 import 'package:gwid/widgets/contact_name_widget.dart';
 import 'package:gwid/widgets/contact_avatar_widget.dart';
-import 'package:gwid/services/contact_local_names_service.dart';
 import 'package:gwid/services/account_manager.dart';
 import 'package:gwid/models/account.dart';
 
@@ -745,7 +744,7 @@ class _ChatsScreenState extends State<ChatsScreen>
                     fontSize: 16,
                   ),
                 ),
-                const Spacer(),
+                /*const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.search, size: 20),
                   onPressed: () {
@@ -756,7 +755,7 @@ class _ChatsScreenState extends State<ChatsScreen>
                     );
                   },
                   tooltip: 'Поиск каналов',
-                ),
+                ),*/
               ],
             ),
           ),
@@ -995,7 +994,7 @@ class _ChatsScreenState extends State<ChatsScreen>
                 },
               ),
 
-              ListTile(
+              /*ListTile(
                 leading: CircleAvatar(
                   backgroundColor: Theme.of(
                     context,
@@ -1015,7 +1014,7 @@ class _ChatsScreenState extends State<ChatsScreen>
                     ),
                   );
                 },
-              ),
+              ),*/
 
               ListTile(
                 leading: CircleAvatar(
@@ -2032,7 +2031,24 @@ class _ChatsScreenState extends State<ChatsScreen>
                                               color: colors.primary,
                                               size: 20,
                                             )
-                                          : null,
+                                          : IconButton(
+                                              icon: Icon(
+                                                Icons.close,
+                                                size: 20,
+                                                color: colors.onSurfaceVariant,
+                                              ),
+                                              onPressed: () {
+                                                _showDeleteAccountDialog(
+                                                  context,
+                                                  account,
+                                                  accountManager,
+                                                  () {
+                                                    // Обновляем список аккаунтов
+                                                    setState(() {});
+                                                  },
+                                                );
+                                              },
+                                            ),
                                       onTap: isCurrent
                                           ? null
                                           : () async {
@@ -3709,6 +3725,57 @@ class _ChatsScreenState extends State<ChatsScreen>
         ).showSnackBar(SnackBar(content: Text('Ошибка при выходе: $e')));
       }
     }
+  }
+
+   void _showDeleteAccountDialog(
+    BuildContext context,
+    Account account,
+    AccountManager accountManager,
+    VoidCallback onDeleted,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Удаление аккаунта'),
+          content: const Text('Точно хочешь удалить аккаунт?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Нет'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                try {
+                  await accountManager.removeAccount(account.id);
+                  if (mounted) {
+                    onDeleted();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Аккаунт удален'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Ошибка: ${e.toString()}'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Да'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _showSearchFilters() {
