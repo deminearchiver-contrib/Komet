@@ -60,8 +60,10 @@ class ChatScreen extends StatefulWidget {
   final int chatId;
   final Contact contact;
   final int myId;
+
   /// Колбэк для мягких обновлений списка чатов (например, после редактирования сообщения).
   final VoidCallback? onChatUpdated;
+
   /// Колбэк, который вызывается, когда чат нужно убрать из списка (удаление / выход из группы).
   final VoidCallback? onChatRemoved;
   final bool isGroupChat;
@@ -363,8 +365,8 @@ class _ChatScreenState extends State<ChatScreen> {
     if (contactProfile != null &&
         contactProfile['id'] != null &&
         contactProfile['id'] != 0) {
-          String? idStr = await prefs.getString("userId");
-          _actualMyId = idStr!.isNotEmpty ? int.parse(idStr) : contactProfile['id'];
+      String? idStr = await prefs.getString("userId");
+      _actualMyId = idStr!.isNotEmpty ? int.parse(idStr) : contactProfile['id'];
       print(
         '✅ [_initializeChat] ID пользователя получен из ApiService: $_actualMyId',
       );
@@ -382,7 +384,8 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     } else if (_actualMyId == null) {
       final prefs = await SharedPreferences.getInstance();
-      _actualMyId = int.parse(await prefs.getString('userId')!);;
+      _actualMyId = int.parse(await prefs.getString('userId')!);
+      ;
       print(
         '⚠️ [_initializeChat] ID не найден, используется из виджета: $_actualMyId',
       );
@@ -1235,7 +1238,6 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _testSlideAnimation() {
-
     final myMessage = Message(
       id: 'test_my_${DateTime.now().millisecondsSinceEpoch}',
       text: 'Тест моё сообщение (должно выехать справа)',
@@ -1789,8 +1791,9 @@ class _ChatScreenState extends State<ChatScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('Ошибка очистки истории: $e'),
-                            backgroundColor:
-                                Theme.of(context).colorScheme.error,
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.error,
                           ),
                         );
                       }
@@ -1889,8 +1892,9 @@ class _ChatScreenState extends State<ChatScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('Ошибка удаления чата: $e'),
-                            backgroundColor:
-                                Theme.of(context).colorScheme.error,
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.error,
                           ),
                         );
                       }
@@ -2522,7 +2526,10 @@ class _ChatScreenState extends State<ChatScreen> {
                       duration: const Duration(milliseconds: 100),
                       curve: Curves.easeOutQuad,
                       right: 16,
-                      bottom: MediaQuery.of(context).viewInsets.bottom + 100,
+                      bottom:
+                          MediaQuery.of(context).viewInsets.bottom +
+                          MediaQuery.of(context).padding.bottom +
+                          100,
                       child: AnimatedScale(
                         duration: const Duration(milliseconds: 200),
                         curve: Curves.easeOutBack,
@@ -2551,7 +2558,10 @@ class _ChatScreenState extends State<ChatScreen> {
             curve: Curves.easeOutQuad,
             left: 8,
             right: 8,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 12,
+            bottom:
+                MediaQuery.of(context).viewInsets.bottom +
+                MediaQuery.of(context).padding.bottom +
+                12,
             child: _buildTextInput(),
           ),
         ],
@@ -3140,8 +3150,8 @@ class _ChatScreenState extends State<ChatScreen> {
                                   _replyingToMessage!.text.isNotEmpty
                                       ? _replyingToMessage!.text
                                       : (_replyingToMessage!.hasFileAttach
-                                          ? 'Файл'
-                                          : 'Фото'),
+                                            ? 'Файл'
+                                            : 'Фото'),
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: Theme.of(
@@ -3508,8 +3518,8 @@ class _ChatScreenState extends State<ChatScreen> {
                                   _replyingToMessage!.text.isNotEmpty
                                       ? _replyingToMessage!.text
                                       : (_replyingToMessage!.hasFileAttach
-                                          ? 'Файл'
-                                          : 'Фото'),
+                                            ? 'Файл'
+                                            : 'Фото'),
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: Theme.of(

@@ -43,7 +43,9 @@ class _BottomSheetMusicPlayerState extends State<BottomSheetMusicPlayer>
       curve: Curves.easeInOut,
     );
     BottomSheetMusicPlayer.isExpandedNotifier.addListener(_onExpandedChanged);
-    BottomSheetMusicPlayer.isFullscreenNotifier.addListener(_onFullscreenChanged);
+    BottomSheetMusicPlayer.isFullscreenNotifier.addListener(
+      _onFullscreenChanged,
+    );
   }
 
   void _onExpandedChanged() {
@@ -63,7 +65,8 @@ class _BottomSheetMusicPlayerState extends State<BottomSheetMusicPlayer>
   }
 
   void _onFullscreenChanged() {
-    final shouldBeFullscreen = BottomSheetMusicPlayer.isFullscreenNotifier.value;
+    final shouldBeFullscreen =
+        BottomSheetMusicPlayer.isFullscreenNotifier.value;
     if (shouldBeFullscreen && _currentState != _PlayerState.fullscreen) {
       setState(() {
         _currentState = _PlayerState.fullscreen;
@@ -164,7 +167,7 @@ class _BottomSheetMusicPlayerState extends State<BottomSheetMusicPlayer>
         final collapsedHeight = 88.0;
         final expandedHeight = screenHeight * 0.85;
         final fullscreenHeight = screenHeight;
-        
+
         double targetHeight;
         if (_currentState == _PlayerState.fullscreen) {
           targetHeight = fullscreenHeight;
@@ -173,9 +176,10 @@ class _BottomSheetMusicPlayerState extends State<BottomSheetMusicPlayer>
         } else {
           targetHeight = collapsedHeight;
         }
-        
+
         // Interpolate between collapsed and target height
-        final currentHeight = collapsedHeight +
+        final currentHeight =
+            collapsedHeight +
             (targetHeight - collapsedHeight) * _heightAnimation.value;
 
         return Material(
@@ -251,15 +255,16 @@ class _BottomSheetMusicPlayerState extends State<BottomSheetMusicPlayer>
         return FadeTransition(
           opacity: animation,
           child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0.0, 0.05),
-              end: Offset.zero,
-            ).animate(
-              CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeOutCubic,
-              ),
-            ),
+            position:
+                Tween<Offset>(
+                  begin: const Offset(0.0, 0.05),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic,
+                  ),
+                ),
             child: child,
           ),
         );
@@ -285,7 +290,7 @@ class _BottomSheetMusicPlayerState extends State<BottomSheetMusicPlayer>
           onTap: _toggleExpand,
           borderRadius: BorderRadius.circular(28),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: [
                 Hero(
@@ -300,10 +305,13 @@ class _BottomSheetMusicPlayerState extends State<BottomSheetMusicPlayer>
                           ? Image.network(
                               track.albumArtUrl!,
                               fit: BoxFit.cover,
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return _buildAlbumArtPlaceholder(colorScheme);
-                              },
+                              loadingBuilder:
+                                  (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return _buildAlbumArtPlaceholder(
+                                      colorScheme,
+                                    );
+                                  },
                               errorBuilder: (context, error, stackTrace) =>
                                   _buildAlbumArtPlaceholder(colorScheme),
                             )
@@ -318,24 +326,30 @@ class _BottomSheetMusicPlayerState extends State<BottomSheetMusicPlayer>
                     mainAxisAlignment: MainAxisAlignment.center,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        track.title,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: -0.2,
-                            ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Flexible(
+                        child: Text(
+                          track.title,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: -0.2,
+                              ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        track.artist,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: colorScheme.onSurface.withOpacity(0.65),
-                              fontSize: 13,
-                            ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      const SizedBox(height: 3),
+                      Flexible(
+                        child: Text(
+                          track.artist,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: colorScheme.onSurface.withOpacity(0.65),
+                                fontSize: 13,
+                              ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
                   ),
@@ -371,7 +385,9 @@ class _BottomSheetMusicPlayerState extends State<BottomSheetMusicPlayer>
                               ),
                             )
                           : Icon(
-                              musicPlayer.isPlaying ? Icons.pause : Icons.play_arrow,
+                              musicPlayer.isPlaying
+                                  ? Icons.pause
+                                  : Icons.play_arrow,
                               size: 26,
                               color: colorScheme.onPrimary,
                             ),
@@ -420,44 +436,44 @@ class _BottomSheetMusicPlayerState extends State<BottomSheetMusicPlayer>
           ),
           Expanded(
             child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const SizedBox(height: 8),
-                      // Album art with hero animation
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final maxWidth = constraints.maxWidth;
-                          final albumSize = maxWidth < 380 ? maxWidth : 380.0;
-                          return Hero(
-                            tag: 'album-art-${track.id}',
-                            child: Container(
-                              width: albumSize,
-                              height: albumSize,
-                              margin: EdgeInsets.symmetric(
-                                horizontal: (maxWidth - albumSize) / 2,
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 8),
+                  // Album art with hero animation
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final maxWidth = constraints.maxWidth;
+                      final albumSize = maxWidth < 380 ? maxWidth : 380.0;
+                      return Hero(
+                        tag: 'album-art-${track.id}',
+                        child: Container(
+                          width: albumSize,
+                          height: albumSize,
+                          margin: EdgeInsets.symmetric(
+                            horizontal: (maxWidth - albumSize) / 2,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(32),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.25),
+                                blurRadius: 30,
+                                offset: const Offset(0, 12),
+                                spreadRadius: 2,
                               ),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(32),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.25),
-                                    blurRadius: 30,
-                                    offset: const Offset(0, 12),
-                                    spreadRadius: 2,
-                                  ),
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(32),
-                                child: track.albumArtUrl != null
-                                    ? Image.network(
-                                        track.albumArtUrl!,
-                                        fit: BoxFit.cover,
-                                        loadingBuilder:
-                                            (context, child, loadingProgress) {
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(32),
+                            child: track.albumArtUrl != null
+                                ? Image.network(
+                                    track.albumArtUrl!,
+                                    fit: BoxFit.cover,
+                                    loadingBuilder:
+                                        (context, child, loadingProgress) {
                                           if (loadingProgress == null) {
                                             return child;
                                           }
@@ -466,228 +482,230 @@ class _BottomSheetMusicPlayerState extends State<BottomSheetMusicPlayer>
                                             colorScheme,
                                           );
                                         },
-                                        errorBuilder:
-                                            (context, error, stackTrace) =>
-                                                _buildLargeAlbumArtPlaceholder(
-                                                  context,
-                                                  colorScheme,
-                                                ),
-                                      )
-                                    : _buildLargeAlbumArtPlaceholder(
-                                        context,
-                                        colorScheme,
-                                      ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 32),
-                      // Track info
-                      Text(
-                        track.title,
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: -0.5,
-                            ),
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        track.artist,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: colorScheme.onSurface.withOpacity(0.75),
-                              fontWeight: FontWeight.w500,
-                            ),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (track.album != null) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          track.album!,
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                color: colorScheme.onSurface.withOpacity(0.6),
-                              ),
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            _buildLargeAlbumArtPlaceholder(
+                                              context,
+                                              colorScheme,
+                                            ),
+                                  )
+                                : _buildLargeAlbumArtPlaceholder(
+                                    context,
+                                    colorScheme,
+                                  ),
+                          ),
                         ),
-                      ],
-                      const SizedBox(height: 40),
-                      // Progress slider
-                      Column(
-                        children: [
-                          SliderTheme(
-                            data: SliderTheme.of(context).copyWith(
-                              activeTrackColor: colorScheme.primary,
-                              inactiveTrackColor:
-                                  colorScheme.surfaceContainerHigh,
-                              thumbColor: colorScheme.primary,
-                              overlayColor:
-                                  colorScheme.primary.withOpacity(0.1),
-                              thumbShape: const RoundSliderThumbShape(
-                                enabledThumbRadius: 8,
-                              ),
-                              trackHeight: 4,
-                            ),
-                            child: Slider(
-                              value: musicPlayer.duration.inMilliseconds > 0
-                                  ? (musicPlayer.position.inMilliseconds /
-                                          musicPlayer.duration.inMilliseconds)
-                                      .clamp(0.0, 1.0)
-                                  : 0.0,
-                              onChanged: (value) {
-                                HapticFeedback.selectionClick();
-                                final newPosition = Duration(
-                                  milliseconds: (value *
-                                          musicPlayer.duration.inMilliseconds)
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 32),
+                  // Track info
+                  Text(
+                    track.title,
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    track.artist,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: colorScheme.onSurface.withOpacity(0.75),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (track.album != null && track.album!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      track.album!,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  if (track.duration != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _formatDuration(Duration(milliseconds: track.duration!)),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurface.withOpacity(0.55),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                  const SizedBox(height: 40),
+                  // Progress slider
+                  Column(
+                    children: [
+                      SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          activeTrackColor: colorScheme.primary,
+                          inactiveTrackColor: colorScheme.surfaceContainerHigh,
+                          thumbColor: colorScheme.primary,
+                          overlayColor: colorScheme.primary.withOpacity(0.1),
+                          thumbShape: const RoundSliderThumbShape(
+                            enabledThumbRadius: 8,
+                          ),
+                          trackHeight: 4,
+                        ),
+                        child: Slider(
+                          value: musicPlayer.duration.inMilliseconds > 0
+                              ? (musicPlayer.position.inMilliseconds /
+                                        musicPlayer.duration.inMilliseconds)
+                                    .clamp(0.0, 1.0)
+                              : 0.0,
+                          onChanged: (value) {
+                            HapticFeedback.selectionClick();
+                            final newPosition = Duration(
+                              milliseconds:
+                                  (value * musicPlayer.duration.inMilliseconds)
                                       .round(),
-                                );
-                                musicPlayer.seek(newPosition);
-                              },
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  _formatDuration(musicPlayer.position),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(
-                                        color: colorScheme.onSurface
-                                            .withOpacity(0.7),
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 13,
-                                      ),
-                                ),
-                                Text(
-                                  _formatDuration(musicPlayer.duration),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(
-                                        color: colorScheme.onSurface
-                                            .withOpacity(0.7),
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 13,
-                                      ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                            );
+                            musicPlayer.seek(newPosition);
+                          },
+                        ),
                       ),
-                      const SizedBox(height: 16),
-                      // Control buttons
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () {
-                                HapticFeedback.selectionClick();
-                                musicPlayer.previous();
-                              },
-                              borderRadius: BorderRadius.circular(28),
-                              child: Container(
-                                width: 56,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  color: colorScheme.surfaceContainerHigh,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.skip_previous_rounded,
-                                  size: 28,
-                                  color: colorScheme.onSurface,
-                                ),
-                              ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _formatDuration(musicPlayer.position),
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: colorScheme.onSurface.withOpacity(
+                                      0.7,
+                                    ),
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 13,
+                                  ),
                             ),
-                          ),
-                          const SizedBox(width: 24),
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () {
-                                HapticFeedback.mediumImpact();
-                                if (musicPlayer.isPlaying) {
-                                  musicPlayer.pause();
-                                } else {
-                                  musicPlayer.resume();
-                                }
-                              },
-                              borderRadius: BorderRadius.circular(40),
-                              child: Container(
-                                width: 80,
-                                height: 80,
-                                decoration: BoxDecoration(
-                                  color: colorScheme.primary,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: musicPlayer.isLoading
-                                    ? Padding(
-                                        padding: const EdgeInsets.all(24),
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 3,
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                            colorScheme.onPrimary,
-                                          ),
-                                        ),
-                                      )
-                                    : Icon(
-                                        musicPlayer.isPlaying
-                                            ? Icons.pause_rounded
-                                            : Icons.play_arrow_rounded,
-                                        size: 40,
-                                        color: colorScheme.onPrimary,
-                                      ),
-                              ),
+                            Text(
+                              _formatDuration(musicPlayer.duration),
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: colorScheme.onSurface.withOpacity(
+                                      0.7,
+                                    ),
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 13,
+                                  ),
                             ),
-                          ),
-                          const SizedBox(width: 24),
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () {
-                                HapticFeedback.selectionClick();
-                                musicPlayer.next();
-                              },
-                              borderRadius: BorderRadius.circular(28),
-                              child: Container(
-                                width: 56,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  color: colorScheme.surfaceContainerHigh,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.skip_next_rounded,
-                                  size: 28,
-                                  color: colorScheme.onSurface,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(
-                        height: MediaQuery.of(context).padding.bottom + 24,
+                          ],
+                        ),
                       ),
                     ],
                   ),
-                ),
-              
+                  const SizedBox(height: 16),
+                  // Control buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            musicPlayer.previous();
+                          },
+                          borderRadius: BorderRadius.circular(28),
+                          child: Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: colorScheme.surfaceContainerHigh,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.skip_previous_rounded,
+                              size: 28,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 24),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            HapticFeedback.mediumImpact();
+                            if (musicPlayer.isPlaying) {
+                              musicPlayer.pause();
+                            } else {
+                              musicPlayer.resume();
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(40),
+                          child: Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: musicPlayer.isLoading
+                                ? Padding(
+                                    padding: const EdgeInsets.all(24),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 3,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        colorScheme.onPrimary,
+                                      ),
+                                    ),
+                                  )
+                                : Icon(
+                                    musicPlayer.isPlaying
+                                        ? Icons.pause_rounded
+                                        : Icons.play_arrow_rounded,
+                                    size: 40,
+                                    color: colorScheme.onPrimary,
+                                  ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 24),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            musicPlayer.next();
+                          },
+                          borderRadius: BorderRadius.circular(28),
+                          child: Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: colorScheme.surfaceContainerHigh,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.skip_next_rounded,
+                              size: 28,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: MediaQuery.of(context).padding.bottom + 24),
+                ],
+              ),
+            ),
           ),
         ],
       ),

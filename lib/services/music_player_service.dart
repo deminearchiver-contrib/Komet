@@ -40,6 +40,9 @@ class MusicTrack {
     final token = attach['token'] as String?;
     final name = attach['name'] as String? ?? 'Unknown';
 
+    final durationSeconds = preview?['duration'] as int?;
+    final duration = durationSeconds != null ? durationSeconds * 1000 : null;
+
     return MusicTrack(
       id:
           fileId?.toString() ??
@@ -48,7 +51,7 @@ class MusicTrack {
       artist: preview?['artistName'] as String? ?? 'Unknown Artist',
       album: preview?['albumName'] as String?,
       albumArtUrl: preview?['baseUrl'] as String?,
-      duration: preview?['duration'] as int?,
+      duration: duration,
       fileId: fileId,
       token: token,
     );
@@ -135,7 +138,7 @@ class MusicPlayerService extends ChangeNotifier {
       _isLoading =
           state.processingState == ProcessingState.loading ||
           state.processingState == ProcessingState.buffering;
-      
+
       // Detect track completion and auto-play next track
       if (state.processingState == ProcessingState.completed && !wasCompleted) {
         _wasCompleted = true;
@@ -143,7 +146,7 @@ class MusicPlayerService extends ChangeNotifier {
       } else if (state.processingState != ProcessingState.completed) {
         _wasCompleted = false;
       }
-      
+
       notifyListeners();
     });
 
@@ -270,7 +273,7 @@ class MusicPlayerService extends ChangeNotifier {
 
   Future<void> _autoPlayNext() async {
     if (_playlist.isEmpty || _playlist.length <= 1) return;
-    
+
     try {
       _currentIndex = (_currentIndex + 1) % _playlist.length;
       await _loadAndPlayTrack(_playlist[_currentIndex]);

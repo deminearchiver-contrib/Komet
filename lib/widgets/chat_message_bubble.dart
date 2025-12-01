@@ -30,8 +30,9 @@ import 'package:platform_info/platform_info.dart';
 
 bool _currentIsDark = false;
 
-bool isMobile = Platform.instance.operatingSystem.iOS ||
-      Platform.instance.operatingSystem.android;
+bool isMobile =
+    Platform.instance.operatingSystem.iOS ||
+    Platform.instance.operatingSystem.android;
 
 enum MessageReadStatus {
   sending, // Отправляется (часы)
@@ -1044,9 +1045,7 @@ class ChatMessageBubble extends StatelessWidget {
     // чтобы визуально не было "бабла" вокруг карточек файлов.
     BoxDecoration bubbleDecoration;
     if (isFileOnly) {
-      bubbleDecoration = const BoxDecoration(
-        color: Colors.transparent,
-      );
+      bubbleDecoration = const BoxDecoration(color: Colors.transparent);
     } else {
       bubbleDecoration = _createBubbleDecoration(
         bubbleColor,
@@ -1112,20 +1111,19 @@ class ChatMessageBubble extends StatelessWidget {
     if (onReaction != null || (isMe && (onEdit != null || onDelete != null))) {
       if (isMobile) {
         messageContent = GestureDetector(
-        onTapDown: (TapDownDetails details) {
-          _showMessageContextMenu(context, details.globalPosition);
-        },
-        child: messageContent,
-      );
+          onTapDown: (TapDownDetails details) {
+            _showMessageContextMenu(context, details.globalPosition);
+          },
+          child: messageContent,
+        );
       } else {
         messageContent = GestureDetector(
-        onSecondaryTapDown: (TapDownDetails details) {
-          _showMessageContextMenu(context, details.globalPosition);
-        },
-        child: messageContent,
-      );
+          onSecondaryTapDown: (TapDownDetails details) {
+            _showMessageContextMenu(context, details.globalPosition);
+          },
+          child: messageContent,
+        );
       }
-      
     }
 
     return Column(
@@ -1576,18 +1574,18 @@ class ChatMessageBubble extends StatelessWidget {
     if (onReaction != null || (isMe && (onEdit != null || onDelete != null))) {
       if (isMobile) {
         videoContent = GestureDetector(
-        onTapDown: (TapDownDetails details) {
-          _showMessageContextMenu(context, details.globalPosition);
-        },
-        child: videoContent,
-      );
+          onTapDown: (TapDownDetails details) {
+            _showMessageContextMenu(context, details.globalPosition);
+          },
+          child: videoContent,
+        );
       } else {
         videoContent = GestureDetector(
-        onSecondaryTapDown: (TapDownDetails details) {
-          _showMessageContextMenu(context, details.globalPosition);
-        },
-        child: videoContent,
-      );
+          onSecondaryTapDown: (TapDownDetails details) {
+            _showMessageContextMenu(context, details.globalPosition);
+          },
+          child: videoContent,
+        );
       }
     }
 
@@ -1671,11 +1669,11 @@ class ChatMessageBubble extends StatelessWidget {
     if (onReaction != null || (isMe && (onEdit != null || onDelete != null))) {
       if (isMobile) {
         photoContent = GestureDetector(
-        onTapDown: (TapDownDetails details) {
-          _showMessageContextMenu(context, details.globalPosition);
-        },
-        child: photoContent,
-      );
+          onTapDown: (TapDownDetails details) {
+            _showMessageContextMenu(context, details.globalPosition);
+          },
+          child: photoContent,
+        );
       } else {
         photoContent = GestureDetector(
           onTapDown: (TapDownDetails details) {
@@ -1683,7 +1681,7 @@ class ChatMessageBubble extends StatelessWidget {
           },
           child: photoContent,
         );
-        }
+      }
     }
 
     return photoContent;
@@ -1808,11 +1806,11 @@ class ChatMessageBubble extends StatelessWidget {
     if (onReaction != null || (isMe && (onEdit != null || onDelete != null))) {
       if (isMobile) {
         videoContent = GestureDetector(
-        onTapDown: (TapDownDetails details) {
-          _showMessageContextMenu(context, details.globalPosition);
-        },
-        child: videoContent,
-      );
+          onTapDown: (TapDownDetails details) {
+            _showMessageContextMenu(context, details.globalPosition);
+          },
+          child: videoContent,
+        );
       } else {
         videoContent = GestureDetector(
           onSecondaryTapDown: (TapDownDetails details) {
@@ -2406,11 +2404,11 @@ class ChatMessageBubble extends StatelessWidget {
     final artist = preview?['artistName'] as String? ?? 'Unknown Artist';
     final album = preview?['albumName'] as String?;
     final albumArtUrl = preview?['baseUrl'] as String?;
-    final duration = preview?['duration'] as int?;
+    final durationSeconds = preview?['duration'] as int?;
+    final duration = durationSeconds != null ? durationSeconds * 1000 : null;
 
     String durationText = '';
-    if (duration != null) {
-      final durationSeconds = (duration / 1000).round();
+    if (durationSeconds != null) {
       final minutes = durationSeconds ~/ 60;
       final seconds = durationSeconds % 60;
       durationText = '$minutes:${seconds.toString().padLeft(2, '0')}';
@@ -2441,7 +2439,14 @@ class ChatMessageBubble extends StatelessWidget {
         }
 
         if (!isDownloaded) {
-          await _handleFileDownload(context, fileId, token, fileName, chatId);
+          await _handleFileDownload(
+            context,
+            fileId,
+            token,
+            fileName,
+            chatId,
+            preview: preview,
+          );
           await Future.delayed(const Duration(seconds: 1));
           if (fileIdString != null) {
             final updatedFileIdMap =
@@ -2708,6 +2713,7 @@ class ChatMessageBubble extends StatelessWidget {
                             token,
                             fileName,
                             chatId,
+                            preview: preview,
                           );
                           await Future.delayed(const Duration(seconds: 1));
                           final updatedFileIdMap =
@@ -2906,8 +2912,9 @@ class ChatMessageBubble extends StatelessWidget {
     int? fileId,
     String? token,
     String fileName,
-    int? chatId,
-  ) async {
+    int? chatId, {
+    Map<String, dynamic>? preview,
+  }) async {
     // 1. Проверяем fileId, он нужен в любом случае
     if (fileId == null) {
       if (context.mounted) {
@@ -3048,7 +3055,16 @@ class ChatMessageBubble extends StatelessWidget {
       }
 
       // Download file to Downloads folder with progress
-      await _downloadFile(downloadUrl, fileName, fileId.toString(), context);
+      await _downloadFile(
+        downloadUrl,
+        fileName,
+        fileId.toString(),
+        context,
+        preview: preview,
+        fileIdInt: fileId,
+        token: token,
+        chatId: chatId,
+      );
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3065,10 +3081,23 @@ class ChatMessageBubble extends StatelessWidget {
     String url,
     String fileName,
     String fileId,
-    BuildContext context,
-  ) async {
+    BuildContext context, {
+    Map<String, dynamic>? preview,
+    int? fileIdInt,
+    String? token,
+    int? chatId,
+  }) async {
     // Download in background without blocking dialog
-    _startBackgroundDownload(url, fileName, fileId, context);
+    _startBackgroundDownload(
+      url,
+      fileName,
+      fileId,
+      context,
+      preview: preview,
+      fileIdInt: fileIdInt,
+      token: token,
+      chatId: chatId,
+    );
 
     // Show immediate success snackbar
     if (context.mounted) {
@@ -3085,8 +3114,12 @@ class ChatMessageBubble extends StatelessWidget {
     String url,
     String fileName,
     String fileId,
-    BuildContext context,
-  ) async {
+    BuildContext context, {
+    Map<String, dynamic>? preview,
+    int? fileIdInt,
+    String? token,
+    int? chatId,
+  }) async {
     // Initialize progress
     FileDownloadProgressService().updateProgress(fileId, 0.0);
 
@@ -3165,6 +3198,40 @@ class ChatMessageBubble extends StatelessWidget {
       if (!fileIdMap.contains(mappingKey)) {
         fileIdMap.add(mappingKey);
         await prefs.setStringList('file_id_to_path_map', fileIdMap);
+      }
+
+      // Save music metadata if preview is available and file is a music file
+      if (preview != null && fileIdInt != null) {
+        final extension = fileName.split('.').last.toLowerCase();
+        if (['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg'].contains(extension)) {
+          final title = preview['title'] as String? ?? fileName;
+          final artist = preview['artistName'] as String? ?? 'Unknown Artist';
+          final album = preview['albumName'] as String?;
+          final albumArtUrl = preview['baseUrl'] as String?;
+          final durationSeconds = preview['duration'] as int?;
+          final duration = durationSeconds != null
+              ? durationSeconds * 1000
+              : null;
+
+          final track = MusicTrack(
+            id: fileId,
+            title: title,
+            artist: artist,
+            album: album,
+            albumArtUrl: albumArtUrl,
+            duration: duration,
+            filePath: file.path,
+            fileId: fileIdInt,
+            token: token,
+            chatId: chatId,
+          );
+
+          final musicMetadataJson = prefs.getString('music_metadata') ?? '{}';
+          final musicMetadata =
+              jsonDecode(musicMetadataJson) as Map<String, dynamic>;
+          musicMetadata[fileId] = track.toJson();
+          await prefs.setString('music_metadata', jsonEncode(musicMetadata));
+        }
       }
 
       // Show success message
@@ -3780,18 +3847,14 @@ class ChatMessageBubble extends StatelessWidget {
             Linkify(
               text:
                   'Привет! Это твои избранные. Все написанное сюда попадёт прямиком к дяде Майору.',
-              style:
-                  TextStyle(color: textColor, fontStyle: FontStyle.italic),
+              style: TextStyle(color: textColor, fontStyle: FontStyle.italic),
               linkStyle: linkStyle,
               onOpen: onOpenLink,
               options: const LinkifyOptions(humanize: false),
               textAlign: TextAlign.left,
             )
           else if (message.text.contains("komet.color_"))
-            _buildKometColorRichText(
-              message.text,
-              defaultTextStyle,
-            )
+            _buildKometColorRichText(message.text, defaultTextStyle)
           else
             Linkify(
               text: message.text,
@@ -3921,10 +3984,7 @@ class ChatMessageBubble extends StatelessWidget {
 
   /// Строит раскрашенный текст на основе синтаксиса komet.color_#HEX'текст'.
   /// Если цвет некорректный, используется красный.
-  Widget _buildKometColorRichText(
-    String rawText,
-    TextStyle baseStyle,
-  ) {
+  Widget _buildKometColorRichText(String rawText, TextStyle baseStyle) {
     final segments = _parseKometColorSegments(rawText, baseStyle.color);
 
     return RichText(
@@ -3956,25 +4016,19 @@ class ChatMessageBubble extends StatelessWidget {
     while (index < text.length) {
       final start = text.indexOf(marker, index);
       if (start == -1) {
-        segments.add(
-          _KometColoredSegment(text.substring(index), null),
-        );
+        segments.add(_KometColoredSegment(text.substring(index), null));
         break;
       }
 
       if (start > index) {
-        segments.add(
-          _KometColoredSegment(text.substring(index, start), null),
-        );
+        segments.add(_KometColoredSegment(text.substring(index, start), null));
       }
 
       final colorStart = start + marker.length;
       final firstQuote = text.indexOf("'", colorStart);
       if (firstQuote == -1) {
         // Кривой синтаксис — считаем всё остальное обычным текстом.
-        segments.add(
-          _KometColoredSegment(text.substring(start), null),
-        );
+        segments.add(_KometColoredSegment(text.substring(start), null));
         break;
       }
 
@@ -3982,9 +4036,7 @@ class ChatMessageBubble extends StatelessWidget {
       final textStart = firstQuote + 1;
       final secondQuote = text.indexOf("'", textStart);
       if (secondQuote == -1) {
-        segments.add(
-          _KometColoredSegment(text.substring(start), null),
-        );
+        segments.add(_KometColoredSegment(text.substring(start), null));
         break;
       }
 
@@ -5254,7 +5306,7 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
     });
 
     _audioPlayer.durationStream.listen((duration) {
-      if (mounted && duration != null) {
+      if (mounted && duration != null && duration.inMilliseconds > 0) {
         setState(() {
           _totalDuration = duration;
         });
@@ -5515,7 +5567,9 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
                         ),
                       ),
                       Text(
-                        widget.durationText,
+                        _totalDuration.inMilliseconds > 0
+                            ? _formatDuration(_totalDuration)
+                            : widget.durationText,
                         style: TextStyle(
                           color: widget.textColor.withOpacity(
                             0.7 * widget.messageTextOpacity,
