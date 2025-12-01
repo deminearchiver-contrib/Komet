@@ -1024,6 +1024,14 @@ class ChatMessageBubble extends StatelessWidget {
     final messageShadowIntensity = themeProvider.messageShadowIntensity;
     final messageBorderRadius = themeProvider.messageBorderRadius;
 
+    // Сообщение только с файлами (без текста и без reply/forward)
+    final isFileOnly =
+        message.attaches.isNotEmpty &&
+        message.attaches.every((a) => a['_type'] == 'FILE') &&
+        message.text.isEmpty &&
+        !message.isReply &&
+        !message.isForwarded;
+
     final bubbleColor = _getBubbleColor(isMe, themeProvider, messageOpacity);
     final textColor = _getTextColor(
       isMe,
@@ -1031,11 +1039,21 @@ class ChatMessageBubble extends StatelessWidget {
       messageTextOpacity,
       context,
     );
-    final bubbleDecoration = _createBubbleDecoration(
-      bubbleColor,
-      messageBorderRadius,
-      messageShadowIntensity,
-    );
+
+    // Обычный пузырь, но для сообщений только с файлами делаем фон прозрачным,
+    // чтобы визуально не было "бабла" вокруг карточек файлов.
+    BoxDecoration bubbleDecoration;
+    if (isFileOnly) {
+      bubbleDecoration = const BoxDecoration(
+        color: Colors.transparent,
+      );
+    } else {
+      bubbleDecoration = _createBubbleDecoration(
+        bubbleColor,
+        messageBorderRadius,
+        messageShadowIntensity,
+      );
+    }
 
     if (hasUnsupportedContent) {
       return _buildUnsupportedMessage(
