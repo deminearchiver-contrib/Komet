@@ -98,6 +98,7 @@ class _ChatsScreenState extends State<ChatsScreen>
   StreamSubscription<void>? _connectionStatusSubscription;
   StreamSubscription<String>? _connectionStateSubscription;
   bool _isAccountsExpanded = false;
+  bool _isReconnecting = false;
 
   SharedPreferences? _prefs;
 
@@ -2329,6 +2330,61 @@ class _ChatsScreenState extends State<ChatsScreen>
                   },
                 ),
                 ListTile(
+                  leading: _isReconnecting
+                      ? SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              colors.primary,
+                            ),
+                          ),
+                        )
+                      : const Icon(Icons.refresh),
+                  title: const Text('Переподключиться'),
+                  enabled: !_isReconnecting,
+                  onTap: () async {
+                    if (_isReconnecting) return;
+
+                    setState(() {
+                      _isReconnecting = true;
+                    });
+
+                    try {
+                      await ApiService.instance.performFullReconnection();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text(
+                              'Переподключение выполнено успешно',
+                            ),
+                            backgroundColor: colors.primaryContainer,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                        Navigator.pop(context);
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Ошибка переподключения: $e'),
+                            backgroundColor: colors.error,
+                            duration: const Duration(seconds: 3),
+                          ),
+                        );
+                      }
+                    } finally {
+                      if (mounted) {
+                        setState(() {
+                          _isReconnecting = false;
+                        });
+                      }
+                    }
+                  },
+                ),
+                ListTile(
                   leading: const Icon(Icons.settings_outlined),
                   title: const Text('Настройки'),
                   onTap: () {
@@ -3892,6 +3948,39 @@ class _ChatsScreenState extends State<ChatsScreen>
 
   Future<void> _logout() async {
     try {
+      ApiService.instance.disconnect();
+
+      final accountManager = AccountManager();
+      await accountManager.initialize();
+      final currentAccount = accountManager.currentAccount;
+
+      if (currentAccount != null) {
+        try {
+          if (accountManager.accounts.length > 1) {
+            await accountManager.removeAccount(currentAccount.id);
+          } else {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.remove('authToken');
+            await prefs.remove('userId');
+            await prefs.remove('multi_accounts');
+            await prefs.remove('current_account_id');
+          }
+        } catch (e) {
+          print('Ошибка при удалении аккаунта: $e');
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.remove('authToken');
+          await prefs.remove('userId');
+        }
+      } else {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('authToken');
+        await prefs.remove('userId');
+      }
+
+      await ApiService.instance.logout();
+
+      ApiService.instance.clearAllCaches();
+
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const PhoneEntryScreen()),

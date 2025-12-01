@@ -661,6 +661,18 @@ extension ApiServiceConnection on ApiService {
 
     _pingTimer?.cancel();
     _reconnectTimer?.cancel();
+    _streamSubscription?.cancel();
+
+    if (_channel != null) {
+      print("Закрываем старое WebSocket соединение перед переподключением...");
+      try {
+        _channel!.sink.close(status.goingAway);
+      } catch (e) {
+        print("Ошибка при закрытии старого соединения: $e");
+      }
+      _channel = null;
+    }
+
     _isSessionOnline = false;
     _isSessionReady = false;
     _handshakeSent = false;
@@ -730,10 +742,17 @@ extension ApiServiceConnection on ApiService {
     try {
       _pingTimer?.cancel();
       _reconnectTimer?.cancel();
+
       _streamSubscription?.cancel();
+      _streamSubscription = null;
 
       if (_channel != null) {
-        _channel!.sink.close();
+        print("🔄 Закрываем старое WebSocket соединение...");
+        try {
+          _channel!.sink.close(status.goingAway);
+        } catch (e) {
+          print("Ошибка при закрытии старого соединения: $e");
+        }
         _channel = null;
       }
 
@@ -752,23 +771,23 @@ extension ApiServiceConnection on ApiService {
       _lastChatsAt = null;
 
       print(
-        " Кэш чатов очищен: _lastChatsPayload = $_lastChatsPayload, _chatsFetchedInThisSession = $_chatsFetchedInThisSession",
+        "🔄 Кэш чатов очищен: _lastChatsPayload = $_lastChatsPayload, _chatsFetchedInThisSession = $_chatsFetchedInThisSession",
       );
 
       _connectionStatusController.add("disconnected");
 
       await connect();
 
-      print(" Полное переподключение завершено");
+      print("✅ Полное переподключение завершено");
 
       await Future.delayed(const Duration(milliseconds: 1500));
 
       if (!_reconnectionCompleteController.isClosed) {
-        print(" Отправляем уведомление о завершении переподключения");
+        print("✅ Отправляем уведомление о завершении переподключения");
         _reconnectionCompleteController.add(null);
       }
     } catch (e) {
-      print("Ошибка полного переподключения: $e");
+      print("❌ Ошибка полного переподключения: $e");
       rethrow;
     }
   }
