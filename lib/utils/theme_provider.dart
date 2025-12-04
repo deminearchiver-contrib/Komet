@@ -786,17 +786,8 @@ class ThemeProvider with ChangeNotifier {
       myLightLight,
     ).toColor();
 
-    final double theirLightSat = (hslLight.saturation * 0.2).clamp(0.05, 0.25);
-    final double theirLightLight = (hslLight.lightness * 0.1 + 0.85).clamp(
-      0.85,
-      0.98,
-    );
-    final Color theirColorLight = HSLColor.fromAHSL(
-      hslLight.alpha,
-      hslLight.hue,
-      theirLightSat,
-      theirLightLight,
-    ).toColor();
+    // Для светлой темы используем RGB(70, 70, 70) по умолчанию
+    final Color theirColorLight = const Color(0xFF464646); // RGB(70, 70, 70)
 
     if (_myBubbleColorLight == myColorLight &&
         _theirBubbleColorLight == theirColorLight &&

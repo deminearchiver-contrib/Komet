@@ -99,11 +99,11 @@ class _CustomizationScreenState extends State<CustomizationScreen> {
         : Colors.blue.shade100;
     final Color theirBubbleFallback = isCurrentlyDark
         ? const Color(0xFF182533)
-        : Colors.grey.shade200;
+        : const Color(0xFF464646); // RGB(70, 70, 70)
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Кастомизация"),
+        title: const Text("Персонализация"),
         surfaceTintColor: Colors.transparent,
         backgroundColor: colors.surface,
       ),
@@ -275,202 +275,229 @@ class _CustomizationScreenState extends State<CustomizationScreen> {
           _ModernSection(
             title: "Сообщения",
             children: [
-              _SliderTile(
-                icon: Icons.text_fields,
-                label: "Непрозрачность текста",
-                value: theme.messageTextOpacity,
-                min: 0.1,
-                max: 1.0,
-                divisions: 18,
-                onChanged: (value) => theme.setMessageTextOpacity(value),
-                displayValue: "${(theme.messageTextOpacity * 100).round()}%",
-              ),
-              _SliderTile(
-                icon: Icons.blur_circular,
-                label: "Интенсивность тени",
-                value: theme.messageShadowIntensity,
-                min: 0.0,
-                max: 0.5,
-                divisions: 10,
-                onChanged: (value) => theme.setMessageShadowIntensity(value),
-                displayValue:
-                    "${(theme.messageShadowIntensity * 100).round()}%",
-              ),
-              _SliderTile(
-                icon: Icons.rounded_corner,
-                label: "Скругление углов",
-                value: theme.messageBorderRadius,
-                min: 4.0,
-                max: 50.0,
-                divisions: 23,
-                onChanged: (value) => theme.setMessageBorderRadius(value),
-                displayValue: "${theme.messageBorderRadius.round()}px",
-              ),
-              const Divider(height: 24),
-              _SliderTile(
-                icon: Icons.menu,
-                label: "Непрозрачность меню",
-                value: theme.messageMenuOpacity,
-                min: 0.1,
-                max: 1.0,
-                divisions: 18,
-                onChanged: (value) => theme.setMessageMenuOpacity(value),
-                displayValue: "${(theme.messageMenuOpacity * 100).round()}%",
-              ),
-              _SliderTile(
-                icon: Icons.blur_on,
-                label: "Размытие меню",
-                value: theme.messageMenuBlur,
-                min: 0.0,
-                max: 20.0,
-                divisions: 20,
-                onChanged: (value) => theme.setMessageMenuBlur(value),
-                displayValue: theme.messageMenuBlur.toStringAsFixed(1),
-              ),
-              const Divider(height: 24),
-              if (MediaQuery.of(context).size.height < 600)
-                const SizedBox(height: 5),
-              _SliderTile(
-                icon: Icons.opacity,
-                label: "Непрозрачность сообщений",
-                value: 1.0 - theme.messageBubbleOpacity,
-                min: 0.0,
-                max: 1.0,
-                divisions: 20,
-                onChanged: (value) =>
-                    theme.setMessageBubbleOpacity(1.0 - value),
-                displayValue:
-                    "${((1.0 - theme.messageBubbleOpacity) * 100).round()}%",
-              ),
+              // Предпросмотр баблов
+              const _MessageBubblesPreview(),
               const SizedBox(height: 16),
-              _CustomSettingTile(
-                icon: Icons.format_color_fill,
-                title: "Тип отображения",
-                child: IgnorePointer(
-                  ignoring: isSystemTheme,
-                  child: Opacity(
-                    opacity: isSystemTheme ? 0.5 : 1.0,
-                    child: DropdownButton<MessageBubbleType>(
-                      value: theme.messageBubbleType,
-                      underline: const SizedBox.shrink(),
-                      onChanged: (value) {
-                        if (value != null) theme.setMessageBubbleType(value);
-                      },
-                      items: MessageBubbleType.values.map((type) {
-                        return DropdownMenuItem(
-                          value: type,
-                          child: Text(type.displayName),
-                        );
-                      }).toList(),
-                    ),
+              
+              // Прозрачность (сворачиваемый, по умолчанию свернут)
+              _ExpandableSection(
+                title: "Прозрачность",
+                initiallyExpanded: false,
+                children: [
+                  _SliderTile(
+                    icon: Icons.text_fields,
+                    label: "Непрозрачность текста",
+                    value: theme.messageTextOpacity,
+                    min: 0.1,
+                    max: 1.0,
+                    divisions: 18,
+                    onChanged: (value) => theme.setMessageTextOpacity(value),
+                    displayValue: "${(theme.messageTextOpacity * 100).round()}%",
                   ),
-                ),
+                  _SliderTile(
+                    icon: Icons.blur_circular,
+                    label: "Интенсивность тени",
+                    value: theme.messageShadowIntensity,
+                    min: 0.0,
+                    max: 0.5,
+                    divisions: 10,
+                    onChanged: (value) => theme.setMessageShadowIntensity(value),
+                    displayValue:
+                        "${(theme.messageShadowIntensity * 100).round()}%",
+                  ),
+                  _SliderTile(
+                    icon: Icons.menu,
+                    label: "Непрозрачность меню",
+                    value: theme.messageMenuOpacity,
+                    min: 0.1,
+                    max: 1.0,
+                    divisions: 18,
+                    onChanged: (value) => theme.setMessageMenuOpacity(value),
+                    displayValue: "${(theme.messageMenuOpacity * 100).round()}%",
+                  ),
+                  _SliderTile(
+                    icon: Icons.blur_on,
+                    label: "Размытие меню",
+                    value: theme.messageMenuBlur,
+                    min: 0.0,
+                    max: 20.0,
+                    divisions: 20,
+                    onChanged: (value) => theme.setMessageMenuBlur(value),
+                    displayValue: theme.messageMenuBlur.toStringAsFixed(1),
+                  ),
+                  _SliderTile(
+                    icon: Icons.opacity,
+                    label: "Непрозрачность сообщений",
+                    value: 1.0 - theme.messageBubbleOpacity,
+                    min: 0.0,
+                    max: 1.0,
+                    divisions: 20,
+                    onChanged: (value) =>
+                        theme.setMessageBubbleOpacity(1.0 - value),
+                    displayValue:
+                        "${((1.0 - theme.messageBubbleOpacity) * 100).round()}%",
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              _CustomSettingTile(
-                icon: Icons.palette,
-                title: "Цвет моих сообщений",
-                child: IgnorePointer(
-                  ignoring: isSystemTheme,
-                  child: Opacity(
-                    opacity: isSystemTheme ? 0.5 : 1.0,
-                    child: GestureDetector(
-                      onTap: () async {
-                        final initial = myBubbleColorToShow ?? myBubbleFallback;
-                        _showColorPicker(
-                          context,
-                          initialColor: initial,
-                          onColorChanged: (color) => myBubbleSetter(color),
-                        );
-                      },
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: myBubbleColorToShow ?? myBubbleFallback,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey),
+              const SizedBox(height: 8),
+              
+              // Вид (сворачиваемый)
+              _ExpandableSection(
+                title: "Вид",
+                initiallyExpanded: false,
+                children: [
+                  _SliderTile(
+                    icon: Icons.rounded_corner,
+                    label: "Скругление углов",
+                    value: theme.messageBorderRadius,
+                    min: 4.0,
+                    max: 50.0,
+                    divisions: 23,
+                    onChanged: (value) => theme.setMessageBorderRadius(value),
+                    displayValue: "${theme.messageBorderRadius.round()}px",
+                  ),
+                  const SizedBox(height: 16),
+                  _CustomSettingTile(
+                    icon: Icons.format_color_fill,
+                    title: "Тип отображения",
+                    child: IgnorePointer(
+                      ignoring: isSystemTheme,
+                      child: Opacity(
+                        opacity: isSystemTheme ? 0.5 : 1.0,
+                        child: DropdownButton<MessageBubbleType>(
+                          value: theme.messageBubbleType,
+                          underline: const SizedBox.shrink(),
+                          onChanged: (value) {
+                            if (value != null) theme.setMessageBubbleType(value);
+                          },
+                          items: MessageBubbleType.values.map((type) {
+                            return DropdownMenuItem(
+                              value: type,
+                              child: Text(type.displayName),
+                            );
+                          }).toList(),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _CustomSettingTile(
-                icon: Icons.palette_outlined,
-                title: "Цвет сообщений собеседника",
-                child: IgnorePointer(
-                  ignoring: isSystemTheme,
-                  child: Opacity(
-                    opacity: isSystemTheme ? 0.5 : 1.0,
-                    child: GestureDetector(
-                      onTap: () async {
-                        final initial =
-                            theirBubbleColorToShow ?? theirBubbleFallback;
-                        _showColorPicker(
-                          context,
-                          initialColor: initial,
-                          onColorChanged: (color) => theirBubbleSetter(color),
-                        );
-                      },
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: theirBubbleColorToShow ?? theirBubbleFallback,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey),
+                  const SizedBox(height: 16),
+                  _CustomSettingTile(
+                    icon: Icons.palette,
+                    title: "Цвет моих сообщений",
+                    child: IgnorePointer(
+                      ignoring: isSystemTheme,
+                      child: Opacity(
+                        opacity: isSystemTheme ? 0.5 : 1.0,
+                        child: GestureDetector(
+                          onTap: () async {
+                            final initial = myBubbleColorToShow ?? myBubbleFallback;
+                            _showColorPicker(
+                              context,
+                              initialColor: initial,
+                              onColorChanged: (color) => myBubbleSetter(color),
+                            );
+                          },
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: myBubbleColorToShow ?? myBubbleFallback,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.grey),
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 16),
+                  _CustomSettingTile(
+                    icon: Icons.palette_outlined,
+                    title: "Цвет сообщений собеседника",
+                    child: IgnorePointer(
+                      ignoring: isSystemTheme,
+                      child: Opacity(
+                        opacity: isSystemTheme ? 0.5 : 1.0,
+                        child: GestureDetector(
+                          onTap: () async {
+                            final initial =
+                                theirBubbleColorToShow ?? theirBubbleFallback;
+                            _showColorPicker(
+                              context,
+                              initialColor: initial,
+                              onColorChanged: (color) => theirBubbleSetter(color),
+                            );
+                          },
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: theirBubbleColorToShow ?? theirBubbleFallback,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.grey),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const Divider(height: 24),
+                  _CustomSettingTile(
+                    icon: Icons.reply,
+                    title: "Автоцвет панели ответа",
+                    subtitle: "",
+                    child: Switch(
+                      value: theme.useAutoReplyColor,
+                      onChanged: (value) => theme.setUseAutoReplyColor(value),
+                    ),
+                  ),
+                  if (!theme.useAutoReplyColor) ...[
+                    const SizedBox(height: 16),
+                    _ColorPickerTile(
+                      title: "Цвет панели ответа",
+                      subtitle: "Фиксированный цвет",
+                      color: theme.customReplyColor ?? Colors.blue,
+                      onColorChanged: (color) => theme.setCustomReplyColor(color),
+                    ),
+                  ],
+                ],
               ),
-              const Divider(height: 24),
-              _CustomSettingTile(
-                icon: Icons.reply,
-                title: "Автоцвет панели ответа",
-                subtitle: "",
-                child: Switch(
-                  value: theme.useAutoReplyColor,
-                  onChanged: (value) => theme.setUseAutoReplyColor(value),
-                ),
-              ),
-              if (!theme.useAutoReplyColor) ...[
-                const SizedBox(height: 16),
-                _ColorPickerTile(
-                  title: "Цвет панели ответа",
-                  subtitle: "Фиксированный цвет",
-                  color: theme.customReplyColor ?? Colors.blue,
-                  onColorChanged: (color) => theme.setCustomReplyColor(color),
-                ),
-              ],
             ],
           ),
           const SizedBox(height: 24),
           _ModernSection(
             title: "Всплывающие окна",
             children: [
-              _SliderTile(
-                icon: Icons.opacity,
-                label: "Прозрачность фона (профиль)",
-                value: theme.profileDialogOpacity,
-                min: 0.0,
-                max: 1.0,
-                divisions: 20,
-                onChanged: (value) => theme.setProfileDialogOpacity(value),
-                displayValue: "${(theme.profileDialogOpacity * 100).round()}%",
-              ),
-              _SliderTile(
-                icon: Icons.blur_on,
-                label: "Размытие фона (профиль)",
-                value: theme.profileDialogBlur,
-                min: 0.0,
-                max: 30.0,
-                divisions: 30,
-                onChanged: (value) => theme.setProfileDialogBlur(value),
-                displayValue: theme.profileDialogBlur.toStringAsFixed(1),
+              // Предпросмотр всплывающего окна
+              _DialogPreview(),
+              const SizedBox(height: 16),
+              
+              // Развернуть настройки
+              _ExpandableSection(
+                title: "Настройки",
+                initiallyExpanded: false,
+                children: [
+                  _SliderTile(
+                    icon: Icons.opacity,
+                    label: "Прозрачность фона (профиль)",
+                    value: theme.profileDialogOpacity,
+                    min: 0.0,
+                    max: 1.0,
+                    divisions: 20,
+                    onChanged: (value) => theme.setProfileDialogOpacity(value),
+                    displayValue: "${(theme.profileDialogOpacity * 100).round()}%",
+                  ),
+                  _SliderTile(
+                    icon: Icons.blur_on,
+                    label: "Размытие фона (профиль)",
+                    value: theme.profileDialogBlur,
+                    min: 0.0,
+                    max: 30.0,
+                    divisions: 30,
+                    onChanged: (value) => theme.setProfileDialogBlur(value),
+                    displayValue: theme.profileDialogBlur.toStringAsFixed(1),
+                  ),
+                ],
               ),
             ],
           ),
@@ -493,6 +520,11 @@ class _CustomizationScreenState extends State<CustomizationScreen> {
           _ModernSection(
             title: "Панели чата",
             children: [
+              // Предпросмотр панелей
+              _PanelsPreview(),
+              const SizedBox(height: 16),
+              
+              // Галочка включения эффекта стекла
               _CustomSettingTile(
                 icon: Icons.tune,
                 title: "Эффект стекла для панелей",
@@ -502,46 +534,52 @@ class _CustomizationScreenState extends State<CustomizationScreen> {
                   onChanged: (value) => theme.setUseGlassPanels(value),
                 ),
               ),
-              if (theme.useGlassPanels) ...[
-                const Divider(height: 24, indent: 16, endIndent: 16),
-                _SliderTile(
-                  label: "Непрозрачность верхней панели",
-                  value: theme.topBarOpacity,
-                  min: 0.1,
-                  max: 1.0,
-                  divisions: 18,
-                  onChanged: (value) => theme.setTopBarOpacity(value),
-                  displayValue: "${(theme.topBarOpacity * 100).round()}%",
-                ),
-                _SliderTile(
-                  label: "Размытие верхней панели",
-                  value: theme.topBarBlur,
-                  min: 0.0,
-                  max: 20.0,
-                  divisions: 40,
-                  onChanged: (value) => theme.setTopBarBlur(value),
-                  displayValue: theme.topBarBlur.toStringAsFixed(1),
-                ),
-                const Divider(height: 24, indent: 16, endIndent: 16),
-                _SliderTile(
-                  label: "Непрозрачность нижней панели",
-                  value: theme.bottomBarOpacity,
-                  min: 0.1,
-                  max: 1.0,
-                  divisions: 18,
-                  onChanged: (value) => theme.setBottomBarOpacity(value),
-                  displayValue: "${(theme.bottomBarOpacity * 100).round()}%",
-                ),
-                _SliderTile(
-                  label: "Размытие нижней панели",
-                  value: theme.bottomBarBlur,
-                  min: 0.0,
-                  max: 20.0,
-                  divisions: 40,
-                  onChanged: (value) => theme.setBottomBarBlur(value),
-                  displayValue: theme.bottomBarBlur.toStringAsFixed(1),
-                ),
-              ],
+              const SizedBox(height: 8),
+              
+              // Развернуть настройки
+              _ExpandableSection(
+                title: "Настройки",
+                initiallyExpanded: false,
+                children: [
+                  _SliderTile(
+                    label: "Непрозрачность верхней панели",
+                    value: theme.topBarOpacity,
+                    min: 0.1,
+                    max: 1.0,
+                    divisions: 18,
+                    onChanged: (value) => theme.setTopBarOpacity(value),
+                    displayValue: "${(theme.topBarOpacity * 100).round()}%",
+                  ),
+                  _SliderTile(
+                    label: "Размытие верхней панели",
+                    value: theme.topBarBlur,
+                    min: 0.0,
+                    max: 20.0,
+                    divisions: 40,
+                    onChanged: (value) => theme.setTopBarBlur(value),
+                    displayValue: theme.topBarBlur.toStringAsFixed(1),
+                  ),
+                  const Divider(height: 24, indent: 16, endIndent: 16),
+                  _SliderTile(
+                    label: "Непрозрачность нижней панели",
+                    value: theme.bottomBarOpacity,
+                    min: 0.1,
+                    max: 1.0,
+                    divisions: 18,
+                    onChanged: (value) => theme.setBottomBarOpacity(value),
+                    displayValue: "${(theme.bottomBarOpacity * 100).round()}%",
+                  ),
+                  _SliderTile(
+                    label: "Размытие нижней панели",
+                    value: theme.bottomBarBlur,
+                    min: 0.0,
+                    max: 20.0,
+                    divisions: 40,
+                    onChanged: (value) => theme.setBottomBarBlur(value),
+                    displayValue: theme.bottomBarBlur.toStringAsFixed(1),
+                  ),
+                ],
+              ),
             ],
           ),
         ],
@@ -1498,6 +1536,349 @@ class _VideoWallpaperState extends State<_VideoWallpaper> {
           decoration: BoxDecoration(color: Colors.black.withOpacity(0.3)),
         ),
       ],
+    );
+  }
+}
+
+class _ExpandableSection extends StatefulWidget {
+  final String title;
+  final List<Widget> children;
+  final bool initiallyExpanded;
+
+  const _ExpandableSection({
+    required this.title,
+    required this.children,
+    this.initiallyExpanded = false,
+  });
+
+  @override
+  State<_ExpandableSection> createState() => _ExpandableSectionState();
+}
+
+class _ExpandableSectionState extends State<_ExpandableSection> {
+  late bool _isExpanded;
+
+  @override
+  void initState() {
+    super.initState();
+    _isExpanded = widget.initiallyExpanded;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        InkWell(
+          onTap: () => setState(() => _isExpanded = !_isExpanded),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 4.0),
+            child: Row(
+              children: [
+                Text(
+                  widget.title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Spacer(),
+                Icon(
+                  _isExpanded ? Icons.expand_less : Icons.expand_more,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_isExpanded) ...[
+          const SizedBox(height: 8),
+          ...widget.children,
+        ],
+      ],
+    );
+  }
+}
+
+class _MessageBubblesPreview extends StatelessWidget {
+  const _MessageBubblesPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    final mockMyMessage = Message(
+      id: '1',
+      senderId: 100,
+      text: "Выглядит отлично! 🔥",
+      time: DateTime.now().millisecondsSinceEpoch,
+      attaches: const [],
+    );
+    final mockTheirMessage = Message(
+      id: '2',
+      senderId: 200,
+      text: "Привет! Как тебе новый вид?",
+      time: DateTime.now().millisecondsSinceEpoch,
+      attaches: const [],
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surfaceVariant.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: ChatMessageBubble(
+                  message: mockTheirMessage,
+                  isMe: false,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Spacer(),
+              Expanded(
+                child: ChatMessageBubble(
+                  message: mockMyMessage,
+                  isMe: true,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DialogPreview extends StatelessWidget {
+  const _DialogPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.watch<ThemeProvider>();
+    final colors = Theme.of(context).colorScheme;
+
+    return Container(
+      height: 120,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surfaceVariant.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Stack(
+          children: [
+            // Фон с размытием
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    colors.primary.withOpacity(0.1),
+                    colors.secondary.withOpacity(0.1),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+            ),
+            // Размытие фона
+            if (theme.profileDialogBlur > 0)
+              BackdropFilter(
+                filter: ImageFilter.blur(
+                  sigmaX: theme.profileDialogBlur,
+                  sigmaY: theme.profileDialogBlur,
+                ),
+                child: Container(color: Colors.transparent),
+              ),
+            // Всплывающее окно
+            Center(
+              child: Container(
+                width: 200,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: colors.surface.withOpacity(theme.profileDialogOpacity),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: colors.outline.withOpacity(0.2),
+                  ),
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.person,
+                    color: colors.onSurface,
+                    size: 32,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PanelsPreview extends StatelessWidget {
+  const _PanelsPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.watch<ThemeProvider>();
+    final colors = Theme.of(context).colorScheme;
+
+    return Container(
+      height: 100,
+      decoration: BoxDecoration(
+        color: colors.surfaceVariant.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            // Фон - градиент от беловатого к серому для лучшей видимости эффекта стекла
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.grey.shade300, // Беловатый сверху
+                    Colors.grey.shade600, // Серый снизу
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+            ),
+            Column(
+              children: [
+                // Верхняя панель
+                if (theme.useGlassPanels)
+                  ClipRect(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(
+                        sigmaX: theme.topBarBlur,
+                        sigmaY: theme.topBarBlur,
+                      ),
+                      child: Container(
+                        height: 30,
+                        color: colors.surface.withOpacity(theme.topBarOpacity),
+                        child: Row(
+                          children: [
+                            const SizedBox(width: 12),
+                            CircleAvatar(
+                              backgroundColor: colors.primaryContainer,
+                              radius: 8,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Container(
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: colors.primaryContainer,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 40),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    height: 30,
+                    color: colors.surface,
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 12),
+                        CircleAvatar(
+                          backgroundColor: colors.primaryContainer,
+                          radius: 8,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Container(
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: colors.primaryContainer,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 40),
+                      ],
+                    ),
+                  ),
+                const Spacer(),
+                // Нижняя панель
+                if (theme.useGlassPanels)
+                  ClipRect(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(
+                        sigmaX: theme.bottomBarBlur,
+                        sigmaY: theme.bottomBarBlur,
+                      ),
+                      child: Container(
+                        height: 30,
+                        color: colors.surface.withOpacity(theme.bottomBarOpacity),
+                        child: Row(
+                          children: [
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Container(
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  color: colors.surfaceVariant,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(Icons.send, color: colors.primary, size: 20),
+                            const SizedBox(width: 12),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    height: 30,
+                    color: colors.surface,
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Container(
+                            height: 20,
+                            decoration: BoxDecoration(
+                              color: colors.surfaceVariant,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(Icons.send, color: colors.primary, size: 20),
+                        const SizedBox(width: 12),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

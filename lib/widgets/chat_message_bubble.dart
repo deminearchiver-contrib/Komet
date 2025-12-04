@@ -1206,7 +1206,7 @@ class ChatMessageBubble extends StatelessWidget {
         !message.isReply &&
         !message.isForwarded;
 
-    final bubbleColor = _getBubbleColor(isMe, themeProvider, messageOpacity);
+    final bubbleColor = _getBubbleColor(isMe, themeProvider, messageOpacity, context);
     final textColor = _getTextColor(
       isMe,
       bubbleColor,
@@ -1773,7 +1773,7 @@ class ChatMessageBubble extends StatelessWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isUltraOptimized = themeProvider.ultraOptimizeChats;
     final messageOpacity = themeProvider.messageBubbleOpacity;
-    final bubbleColor = _getBubbleColor(isMe, themeProvider, messageOpacity);
+    final bubbleColor = _getBubbleColor(isMe, themeProvider, messageOpacity, context);
     final textColor = _getTextColor(
       isMe,
       bubbleColor,
@@ -3889,10 +3889,12 @@ class ChatMessageBubble extends StatelessWidget {
     bool isMe,
     ThemeProvider themeProvider,
     double messageOpacity,
+    BuildContext context,
   ) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final baseColor = isMe
         ? (themeProvider.myBubbleColor ?? const Color(0xFF2b5278))
-        : (themeProvider.theirBubbleColor ?? const Color(0xFF182533));
+        : (themeProvider.theirBubbleColor ?? (isDark ? const Color(0xFF182533) : const Color(0xFF464646)));
     return baseColor.withOpacity(1.0 - messageOpacity);
   }
 

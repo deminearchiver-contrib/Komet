@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:gwid/utils/theme_provider.dart';
 import 'package:gwid/screens/settings/customization_screen.dart';
-import 'package:gwid/screens/settings/animations_screen.dart';
 
 class AppearanceSettingsScreen extends StatelessWidget {
   final bool isModal;
@@ -29,32 +28,17 @@ class AppearanceSettingsScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildSectionTitle("Кастомизация", colors),
+                _buildSectionTitle("Персонализация", colors),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.palette_outlined),
-                  title: const Text("Настройки тем"),
+                  title: const Text("Персонализация"),
                   subtitle: const Text("Тема, обои и другие настройки"),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (context) => CustomizationScreen(),
-                      ),
-                    );
-                  },
-                ),
-
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.animation),
-                  title: const Text("Настройки анимаций"),
-                  subtitle: const Text("Анимации сообщений и переходов"),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => AnimationsScreen(),
                       ),
                     );
                   },
@@ -103,29 +87,16 @@ class AppearanceSettingsScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionTitle("Кастомизация", colors),
+              _buildSectionTitle("Персонализация", colors),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.palette_outlined),
-                title: const Text("Настройки тем"),
+                title: const Text("Персонализация"),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (context) => const CustomizationScreen(),
-                    ),
-                  );
-                },
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.animation_outlined),
-                title: const Text("Анимации"),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const AnimationsScreen(),
                     ),
                   );
                 },
@@ -232,29 +203,16 @@ class AppearanceSettingsScreen extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildSectionTitle("Кастомизация", colors),
+                              _buildSectionTitle("Персонализация", colors),
                               ListTile(
                                 contentPadding: EdgeInsets.zero,
                                 leading: const Icon(Icons.palette_outlined),
-                                title: const Text("Настройки тем"),
+                                title: const Text("Персонализация"),
                                 trailing: const Icon(Icons.chevron_right),
                                 onTap: () {
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
                                       builder: (context) => const CustomizationScreen(),
-                                    ),
-                                  );
-                                },
-                              ),
-                              ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: const Icon(Icons.animation_outlined),
-                                title: const Text("Анимации"),
-                                trailing: const Icon(Icons.chevron_right),
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (context) => const AnimationsScreen(),
                                     ),
                                   );
                                 },
