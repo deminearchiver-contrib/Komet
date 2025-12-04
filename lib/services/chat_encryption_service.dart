@@ -21,7 +21,7 @@ class ChatEncryptionConfig {
   factory ChatEncryptionConfig.fromJson(Map<String, dynamic> json) {
     return ChatEncryptionConfig(
       password: (json['password'] as String?) ?? '',
-      sendEncrypted: (json['sendEncrypted'] as bool?) ?? false,
+      sendEncrypted: (json['sendEncrypted'] as bool?) ?? true,
     );
   }
 }
@@ -54,7 +54,7 @@ class ChatEncryptionService {
     if (legacyPassword != null && legacyPassword.isNotEmpty) {
       final legacyConfig = ChatEncryptionConfig(
         password: legacyPassword,
-        sendEncrypted: false,
+        sendEncrypted: true,
       );
       await _saveConfig(chatId, legacyConfig);
       return legacyConfig;

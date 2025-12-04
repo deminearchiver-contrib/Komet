@@ -433,6 +433,8 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _sendEncryptedForCurrentChat = false;
   bool _specialMessagesEnabled = false;
 
+  bool _formatWarningVisible = false;
+
   bool _showKometColorPicker = false;
   String? _currentKometColorPrefix;
 
@@ -1948,6 +1950,16 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _applyTextFormat(String type) {
+    final isEncryptionActive =
+        _encryptionConfigForCurrentChat != null &&
+        _encryptionConfigForCurrentChat!.password.isNotEmpty &&
+        _sendEncryptedForCurrentChat;
+    if (isEncryptionActive) {
+      setState(() {
+        _formatWarningVisible = true;
+      });
+      return;
+    }
     final selection = _textController.selection;
     if (!selection.isValid || selection.isCollapsed) return;
     final from = selection.start;
@@ -4320,7 +4332,6 @@ class _ChatScreenState extends State<ChatScreen> {
                                   ),
                                   const SizedBox(height: 4),
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.start,
                                     children: [
                                       IconButton(
                                         iconSize: 18,
@@ -4370,6 +4381,28 @@ class _ChatScreenState extends State<ChatScreen> {
                                                 'STRIKETHROUGH',
                                               ),
                                         tooltip: 'Зачеркнуть',
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: AnimatedOpacity(
+                                          opacity: _formatWarningVisible
+                                              ? 1
+                                              : 0,
+                                          duration: const Duration(
+                                            milliseconds: 200,
+                                          ),
+                                          child: Text(
+                                            'Форматирование не доступно в шифрованных сообщениях.',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.error,
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
                                       ),
                                     ],
                                   ),
