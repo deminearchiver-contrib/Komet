@@ -1031,6 +1031,7 @@ extension ApiServiceChats on ApiService {
     String text, {
     String? replyToMessageId,
     int? cid,
+    List<Map<String, dynamic>>? elements,
   }) {
     final int clientMessageId = cid ?? DateTime.now().millisecondsSinceEpoch;
     final payload = {
@@ -1038,7 +1039,7 @@ extension ApiServiceChats on ApiService {
       "message": {
         "text": text,
         "cid": clientMessageId,
-        "elements": [],
+        "elements": elements ?? [],
         "attaches": [],
         if (replyToMessageId != null)
           "link": {"type": "REPLY", "messageId": replyToMessageId},

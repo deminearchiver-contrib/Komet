@@ -129,7 +129,6 @@ extension ApiServiceAuth on ApiService {
       await prefs.setString('userId', userId);
     }
 
-    // Полный сброс сессии как при переключении аккаунта
     _messageQueue.clear();
     _lastChatsPayload = null;
     _chatsFetchedInThisSession = false;
@@ -231,9 +230,37 @@ extension ApiServiceAuth on ApiService {
 
   Future<void> logout() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('authToken');
-      await prefs.remove('userId');
+      // Удаляем текущий аккаунт из AccountManager / prefs
+      final accountManager = AccountManager();
+      await accountManager.initialize();
+      final currentAccount = accountManager.currentAccount;
+
+      if (currentAccount != null) {
+        try {
+          if (accountManager.accounts.length > 1) {
+            await accountManager.removeAccount(currentAccount.id);
+          } else {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.remove('authToken');
+            await prefs.remove('userId');
+            await prefs.remove('multi_accounts');
+            await prefs.remove('current_account_id');
+          }
+        } catch (e) {
+          print('Ошибка при удалении аккаунта: $e');
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.remove('authToken');
+          await prefs.remove('userId');
+        }
+      } else {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('authToken');
+        await prefs.remove('userId');
+        await prefs.remove('multi_accounts');
+        await prefs.remove('current_account_id');
+      }
+
+      // Чистим in-memory состояние и разрываем соединение
       authToken = null;
       userId = null;
       _messageCache.clear();
@@ -242,7 +269,20 @@ extension ApiServiceAuth on ApiService {
       _pingTimer?.cancel();
       await _channel?.sink.close(status.goingAway);
       _channel = null;
-    } catch (_) {}
+
+      clearAllCaches();
+
+      _isSessionOnline = false;
+      _isSessionReady = false;
+      _handshakeSent = false;
+      _reconnectAttempts = 0;
+      _currentUrlIndex = 0;
+
+      _messageQueue.clear();
+      _presenceData.clear();
+    } catch (e) {
+      print('Ошибка logout(): $e');
+    }
   }
 
   Future<void> clearAllData() async {

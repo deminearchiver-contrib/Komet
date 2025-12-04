@@ -4097,6 +4097,7 @@ class ChatMessageBubble extends StatelessWidget {
               defaultTextStyle,
               linkStyle,
               onOpenLink,
+              elements: message.elements,
             )
           else if (message.text.contains("welcome.saved.dialog.message"))
             Linkify(
@@ -4115,15 +4116,15 @@ class ChatMessageBubble extends StatelessWidget {
               defaultTextStyle,
               linkStyle,
               onOpenLink,
+              elements: message.elements,
             )
           else
-            Linkify(
-              text: message.text,
-              style: defaultTextStyle,
-              linkStyle: linkStyle,
-              onOpen: onOpenLink,
-              options: const LinkifyOptions(humanize: false),
-              textAlign: TextAlign.left,
+            _buildMixedMessageContent(
+              message.text,
+              defaultTextStyle,
+              linkStyle,
+              onOpenLink,
+              elements: message.elements,
             ),
           if (message.reactionInfo != null) const SizedBox(height: 4),
         ],
@@ -4380,8 +4381,9 @@ class ChatMessageBubble extends StatelessWidget {
     String text,
     TextStyle baseStyle,
     TextStyle linkStyle,
-    Future<void> Function(LinkableElement) onOpenLink,
-  ) {
+    Future<void> Function(LinkableElement) onOpenLink, {
+    List<Map<String, dynamic>> elements = const [],
+  }) {
     final segments = _parseMixedMessageSegments(text);
 
     return Wrap(
@@ -4389,21 +4391,22 @@ class ChatMessageBubble extends StatelessWidget {
       children: segments.map((seg) {
         switch (seg.type) {
           case _KometSegmentType.normal:
-            return Linkify(
-              text: seg.text,
-              style: baseStyle,
-              linkStyle: linkStyle,
-              onOpen: onOpenLink,
-              options: const LinkifyOptions(humanize: false),
-            );
           case _KometSegmentType.colored:
-            return Linkify(
-              text: seg.text,
-              style: baseStyle.copyWith(color: seg.color),
-              linkStyle: linkStyle,
-              onOpen: onOpenLink,
-              options: const LinkifyOptions(humanize: false),
-            );
+            final baseForSeg = seg.type == _KometSegmentType.colored
+                ? baseStyle.copyWith(color: seg.color)
+                : baseStyle;
+
+            if (elements.isEmpty) {
+              return Linkify(
+                text: seg.text,
+                style: baseForSeg,
+                linkStyle: linkStyle,
+                onOpen: onOpenLink,
+                options: const LinkifyOptions(humanize: false),
+              );
+            } else {
+              return _buildFormattedRichText(seg.text, baseForSeg, elements);
+            }
           case _KometSegmentType.galaxy:
             return _GalaxyAnimatedText(text: seg.text);
           case _KometSegmentType.pulse:
@@ -4441,6 +4444,78 @@ class ChatMessageBubble extends StatelessWidget {
             )
             .toList(),
       ),
+    );
+  }
+
+  /// Строит RichText с учётом elements (STRONG, EMPHASIZED, UNDERLINE, STRIKETHROUGH).
+  Widget _buildFormattedRichText(
+    String text,
+    TextStyle baseStyle,
+    List<Map<String, dynamic>> elements,
+  ) {
+    if (text.isEmpty || elements.isEmpty) {
+      return Text(text, style: baseStyle);
+    }
+
+    final bold = List<bool>.filled(text.length, false);
+    final italic = List<bool>.filled(text.length, false);
+    final underline = List<bool>.filled(text.length, false);
+    final strike = List<bool>.filled(text.length, false);
+
+    for (final el in elements) {
+      final type = el['type'] as String?;
+      final from = (el['from'] as int?) ?? 0;
+      final length = (el['length'] as int?) ?? 0;
+      if (type == null || length <= 0) continue;
+      final start = from.clamp(0, text.length);
+      final end = (from + length).clamp(0, text.length);
+      for (int i = start; i < end; i++) {
+        switch (type) {
+          case 'STRONG':
+            bold[i] = true;
+            break;
+          case 'EMPHASIZED':
+            italic[i] = true;
+            break;
+          case 'UNDERLINE':
+            underline[i] = true;
+            break;
+          case 'STRIKETHROUGH':
+            strike[i] = true;
+            break;
+        }
+      }
+    }
+
+    final spans = <TextSpan>[];
+    int start = 0;
+
+    TextStyle _styleForIndex(int i) {
+      var s = baseStyle;
+      if (bold[i]) s = s.copyWith(fontWeight: FontWeight.w600);
+      if (italic[i]) s = s.copyWith(fontStyle: FontStyle.italic);
+      final line = <TextDecoration>[];
+      if (underline[i]) line.add(TextDecoration.underline);
+      if (strike[i]) line.add(TextDecoration.lineThrough);
+      if (line.isNotEmpty) {
+        s = s.copyWith(decoration: TextDecoration.combine(line));
+      }
+      return s;
+    }
+
+    while (start < text.length) {
+      int end = start + 1;
+      final style = _styleForIndex(start);
+      while (end < text.length && _styleForIndex(end) == style) {
+        end++;
+      }
+      spans.add(TextSpan(text: text.substring(start, end), style: style));
+      start = end;
+    }
+
+    return RichText(
+      textAlign: TextAlign.left,
+      text: TextSpan(children: spans, style: baseStyle),
     );
   }
 

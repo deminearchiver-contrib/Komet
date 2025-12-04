@@ -9,6 +9,7 @@ class Message {
   final int? cid; // клиентский id (timestamp)
   final Map<String, dynamic>? reactionInfo; // Информация о реакциях
   final Map<String, dynamic>? link; // Информация об ответе на сообщение
+  final List<Map<String, dynamic>> elements; // Форматирование текста
 
   Message({
     required this.id,
@@ -21,6 +22,7 @@ class Message {
     this.cid,
     this.reactionInfo,
     this.link,
+    this.elements = const [],
   });
 
   factory Message.fromJson(Map<String, dynamic> json) {
@@ -55,6 +57,11 @@ class Message {
       cid: json['cid'],
       reactionInfo: json['reactionInfo'],
       link: json['link'],
+      elements:
+          (json['elements'] as List?)
+              ?.map((e) => (e as Map).cast<String, dynamic>())
+              .toList() ??
+          const [],
     );
   }
 
@@ -69,6 +76,7 @@ class Message {
     int? cid,
     Map<String, dynamic>? reactionInfo,
     Map<String, dynamic>? link,
+    List<Map<String, dynamic>>? elements,
   }) {
     return Message(
       id: id ?? this.id,
@@ -81,6 +89,7 @@ class Message {
       cid: cid ?? this.cid,
       reactionInfo: reactionInfo ?? this.reactionInfo,
       link: link ?? this.link,
+      elements: elements ?? this.elements,
     );
   }
 
@@ -117,6 +126,7 @@ class Message {
       'attaches': attaches,
       'link': link,
       'reactionInfo': reactionInfo,
+      'elements': elements,
     };
   }
 }

@@ -32,6 +32,7 @@ import 'package:gwid/screens/chat_encryption_settings_screen.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:gwid/services/chat_encryption_service.dart';
 import 'package:lottie/lottie.dart';
+import 'package:gwid/widgets/formatted_text_controller.dart';
 
 bool _debugShowExactDate = false;
 
@@ -230,7 +231,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   bool _isLoadingHistory = true;
   Map<String, dynamic>? _emptyChatSticker;
-  final TextEditingController _textController = TextEditingController();
+  final FormattedTextController _textController = FormattedTextController();
   final FocusNode _textFocusNode = FocusNode();
   StreamSubscription? _apiSubscription;
   final ItemScrollController _itemScrollController = ItemScrollController();
@@ -1946,6 +1947,28 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  void _applyTextFormat(String type) {
+    final selection = _textController.selection;
+    if (!selection.isValid || selection.isCollapsed) return;
+    final from = selection.start;
+    final length = selection.end - selection.start;
+    if (length <= 0) return;
+
+    setState(() {
+      _textController.elements.add({
+        'type': type,
+        'from': from,
+        'length': length,
+      });
+    });
+  }
+
+  void _resetDraftFormattingIfNeeded(String newText) {
+    if (newText.isEmpty) {
+      _textController.elements.clear();
+    }
+  }
+
   Future<void> _sendMessage() async {
     final originalText = _textController.text.trim();
     if (originalText.isNotEmpty) {
@@ -1988,7 +2011,13 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
 
+      if (textToSend != originalText) {
+        _textController.elements.clear();
+      }
+
       final int tempCid = DateTime.now().millisecondsSinceEpoch;
+      final List<Map<String, dynamic>> tempElements =
+          List<Map<String, dynamic>>.from(_textController.elements);
       final tempMessageJson = {
         'id': 'local_$tempCid',
         'text': textToSend,
@@ -1997,6 +2026,7 @@ class _ChatScreenState extends State<ChatScreen> {
         'cid': tempCid,
         'type': 'USER',
         'attaches': [],
+        'elements': tempElements,
         'link': _replyingToMessage != null
             ? {
                 'type': 'REPLY',
@@ -2026,6 +2056,7 @@ class _ChatScreenState extends State<ChatScreen> {
         textToSend,
         replyToMessageId: _replyingToMessage?.id,
         cid: tempCid, // Передаем тот же CID в API
+        elements: tempElements,
       );
 
       final readSettings = await ChatReadSettingsService.instance.getSettings(
@@ -2045,6 +2076,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
       setState(() {
         _replyingToMessage = null;
+        _textController.elements.clear();
       });
     }
   }
@@ -4233,52 +4265,115 @@ class _ChatScreenState extends State<ChatScreen> {
                                 }
                                 return KeyEventResult.ignored;
                               },
-                              child: TextField(
-                                controller: _textController,
-                                enabled: !isBlocked,
-                                keyboardType: TextInputType.multiline,
-                                textInputAction: TextInputAction.newline,
-                                minLines: 1,
-                                maxLines: 5,
-                                decoration: InputDecoration(
-                                  hintText: isBlocked
-                                      ? 'Пользователь заблокирован'
-                                      : 'Сообщение...',
-                                  filled: true,
-                                  isDense: true,
-                                  fillColor: isBlocked
-                                      ? Theme.of(context)
-                                            .colorScheme
-                                            .surfaceContainerHighest
-                                            .withOpacity(0.25)
-                                      : Theme.of(context)
-                                            .colorScheme
-                                            .surfaceContainerHighest
-                                            .withOpacity(0.4),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                    borderSide: BorderSide.none,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  TextField(
+                                    controller: _textController,
+                                    enabled: !isBlocked,
+                                    keyboardType: TextInputType.multiline,
+                                    textInputAction: TextInputAction.newline,
+                                    minLines: 1,
+                                    maxLines: 5,
+                                    decoration: InputDecoration(
+                                      hintText: isBlocked
+                                          ? 'Пользователь заблокирован'
+                                          : 'Сообщение...',
+                                      filled: true,
+                                      isDense: true,
+                                      fillColor: isBlocked
+                                          ? Theme.of(context)
+                                                .colorScheme
+                                                .surfaceContainerHighest
+                                                .withOpacity(0.25)
+                                          : Theme.of(context)
+                                                .colorScheme
+                                                .surfaceContainerHighest
+                                                .withOpacity(0.4),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 18.0,
+                                            vertical: 12.0,
+                                          ),
+                                    ),
+                                    onChanged: isBlocked
+                                        ? null
+                                        : (v) {
+                                            _resetDraftFormattingIfNeeded(v);
+                                            if (v.isNotEmpty) {
+                                              _scheduleTypingPing();
+                                            }
+                                          },
                                   ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                    borderSide: BorderSide.none,
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.start,
+                                    children: [
+                                      IconButton(
+                                        iconSize: 18,
+                                        padding: EdgeInsets.zero,
+                                        visualDensity: VisualDensity.compact,
+                                        icon: const Icon(Icons.format_bold),
+                                        onPressed: isBlocked
+                                            ? null
+                                            : () => _applyTextFormat('STRONG'),
+                                        tooltip: 'Жирный',
+                                      ),
+                                      IconButton(
+                                        iconSize: 18,
+                                        padding: EdgeInsets.zero,
+                                        visualDensity: VisualDensity.compact,
+                                        icon: const Icon(Icons.format_italic),
+                                        onPressed: isBlocked
+                                            ? null
+                                            : () => _applyTextFormat(
+                                                'EMPHASIZED',
+                                              ),
+                                        tooltip: 'Курсив',
+                                      ),
+                                      IconButton(
+                                        iconSize: 18,
+                                        padding: EdgeInsets.zero,
+                                        visualDensity: VisualDensity.compact,
+                                        icon: const Icon(
+                                          Icons.format_underline,
+                                        ),
+                                        onPressed: isBlocked
+                                            ? null
+                                            : () =>
+                                                  _applyTextFormat('UNDERLINE'),
+                                        tooltip: 'Подчеркнуть',
+                                      ),
+                                      IconButton(
+                                        iconSize: 18,
+                                        padding: EdgeInsets.zero,
+                                        visualDensity: VisualDensity.compact,
+                                        icon: const Icon(
+                                          Icons.format_strikethrough,
+                                        ),
+                                        onPressed: isBlocked
+                                            ? null
+                                            : () => _applyTextFormat(
+                                                'STRIKETHROUGH',
+                                              ),
+                                        tooltip: 'Зачеркнуть',
+                                      ),
+                                    ],
                                   ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 18.0,
-                                    vertical: 12.0,
-                                  ),
-                                ),
-                                onChanged: isBlocked
-                                    ? null
-                                    : (v) {
-                                        if (v.isNotEmpty) {
-                                          _scheduleTypingPing();
-                                        }
-                                      },
+                                ],
                               ),
                             ),
                           ],

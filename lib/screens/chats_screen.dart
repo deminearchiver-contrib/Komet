@@ -3950,38 +3950,7 @@ class _ChatsScreenState extends State<ChatsScreen>
 
   Future<void> _logout() async {
     try {
-      ApiService.instance.disconnect();
-
-      final accountManager = AccountManager();
-      await accountManager.initialize();
-      final currentAccount = accountManager.currentAccount;
-
-      if (currentAccount != null) {
-        try {
-          if (accountManager.accounts.length > 1) {
-            await accountManager.removeAccount(currentAccount.id);
-          } else {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.remove('authToken');
-            await prefs.remove('userId');
-            await prefs.remove('multi_accounts');
-            await prefs.remove('current_account_id');
-          }
-        } catch (e) {
-          print('Ошибка при удалении аккаунта: $e');
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.remove('authToken');
-          await prefs.remove('userId');
-        }
-      } else {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.remove('authToken');
-        await prefs.remove('userId');
-      }
-
       await ApiService.instance.logout();
-
-      ApiService.instance.clearAllCaches();
 
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
