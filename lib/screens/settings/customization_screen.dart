@@ -511,7 +511,7 @@ class _CustomizationScreenState extends State<CustomizationScreen> {
           ),
           const SizedBox(height: 24),
           _ModernSection(
-            title: "Режим ПК",
+            title: "Режим ПK",
             children: [
               _CustomSettingTile(
                 icon: Icons.desktop_windows,
