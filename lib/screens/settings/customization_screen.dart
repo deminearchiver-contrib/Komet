@@ -511,12 +511,12 @@ class _CustomizationScreenState extends State<CustomizationScreen> {
           ),
           const SizedBox(height: 24),
           _ModernSection(
-            title: "Режим рабочего стола",
+            title: "Режим ПК",
             children: [
               _CustomSettingTile(
                 icon: Icons.desktop_windows,
-                title: "Режим с контактами слева",
-                subtitle: "Контакты слева, чат справа",
+                title: "Режим ПК(не работает на телефонах)",
+                subtitle: "Discord reference?",
                 child: Switch(
                   value: theme.useDesktopLayout,
                   onChanged: (value) => theme.setUseDesktopLayout(value),

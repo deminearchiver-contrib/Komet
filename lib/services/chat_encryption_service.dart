@@ -79,7 +79,7 @@ class ChatEncryptionService {
     final current = await getConfigForChat(chatId);
     final updated = ChatEncryptionConfig(
       password: password,
-      sendEncrypted: current?.sendEncrypted ?? false,
+      sendEncrypted: current?.sendEncrypted ?? true,
     );
     await _saveConfig(chatId, updated);
   }
@@ -106,7 +106,7 @@ class ChatEncryptionService {
   /// Быстрый хелпер для проверки, включена ли зашифрованная отправка для чата.
   static Future<bool> isSendEncryptedEnabled(int chatId) async {
     final cfg = await getConfigForChat(chatId);
-    return cfg?.sendEncrypted ?? false;
+    return cfg?.sendEncrypted ?? true;
   }
 
   /// Простейшее симметричное "шифрование" на базе XOR с ключом из пароля и соли.

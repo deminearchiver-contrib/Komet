@@ -20,13 +20,13 @@ class ChatEncryptionSettingsScreen extends StatefulWidget {
 class _ChatEncryptionSettingsScreenState
     extends State<ChatEncryptionSettingsScreen> {
   final TextEditingController _passwordController = TextEditingController();
-  bool _sendEncrypted = false;
+  bool _sendEncrypted = true;
   bool _isPasswordCurrentlySet = false;
 
   @override
   void initState() {
     super.initState();
-    _sendEncrypted = false;
+    _sendEncrypted = true;
     _loadConfig();
   }
 
@@ -39,7 +39,7 @@ class _ChatEncryptionSettingsScreenState
       _sendEncrypted = cfg.sendEncrypted;
     } else {
       _isPasswordCurrentlySet = widget.isPasswordSet;
-      _sendEncrypted = false;
+      _sendEncrypted = true;
     }
     setState(() {});
   }

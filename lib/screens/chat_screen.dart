@@ -312,6 +312,22 @@ class _ChatScreenState extends State<ChatScreen> {
                           icon: const Icon(Icons.photo_library_outlined),
                           label: const Text('Фото / видео'),
                           onPressed: () async {
+                            final isEncryptionActive =
+                                _encryptionConfigForCurrentChat != null &&
+                                _encryptionConfigForCurrentChat!.password.isNotEmpty &&
+                                _sendEncryptedForCurrentChat;
+                            if (isEncryptionActive) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Нельзя отправлять медиа при включенном шифровании'),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                              }
+                              Navigator.of(ctx).pop();
+                              return;
+                            }
                             Navigator.of(ctx).pop();
                             final result = await _pickPhotosFlow(context);
                             if (!mounted) return;
@@ -346,6 +362,22 @@ class _ChatScreenState extends State<ChatScreen> {
                           icon: const Icon(Icons.insert_drive_file_outlined),
                           label: const Text('Файл с устройства'),
                           onPressed: () async {
+                            final isEncryptionActive =
+                                _encryptionConfigForCurrentChat != null &&
+                                _encryptionConfigForCurrentChat!.password.isNotEmpty &&
+                                _sendEncryptedForCurrentChat;
+                            if (isEncryptionActive) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Нельзя отправлять медиа при включенном шифровании'),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                              }
+                              Navigator.of(ctx).pop();
+                              return;
+                            }
                             Navigator.of(ctx).pop();
                             await ApiService.instance.sendFileMessage(
                               widget.chatId,
@@ -374,7 +406,21 @@ class _ChatScreenState extends State<ChatScreen> {
         },
       );
     } else {
-      // Десктоп: простое меню вместо плашки
+      final isEncryptionActive =
+          _encryptionConfigForCurrentChat != null &&
+          _encryptionConfigForCurrentChat!.password.isNotEmpty &&
+          _sendEncryptedForCurrentChat;
+      if (isEncryptionActive) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Нельзя отправлять медиа при включенном шифровании'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
       if (!mounted) return;
       final choice = await showDialog<String>(
         context: context,
@@ -406,6 +452,21 @@ class _ChatScreenState extends State<ChatScreen> {
       );
 
       if (choice == 'media') {
+        final isEncryptionActive =
+            _encryptionConfigForCurrentChat != null &&
+            _encryptionConfigForCurrentChat!.password.isNotEmpty &&
+            _sendEncryptedForCurrentChat;
+        if (isEncryptionActive) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Нельзя отправлять медиа при включенном шифровании'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          return;
+        }
         final result = await _pickPhotosFlow(context);
         if (result != null && result.paths.isNotEmpty) {
           await ApiService.instance.sendPhotoMessages(
@@ -416,6 +477,21 @@ class _ChatScreenState extends State<ChatScreen> {
           );
         }
       } else if (choice == 'file') {
+        final isEncryptionActive =
+            _encryptionConfigForCurrentChat != null &&
+            _encryptionConfigForCurrentChat!.password.isNotEmpty &&
+            _sendEncryptedForCurrentChat;
+        if (isEncryptionActive) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Нельзя отправлять медиа при включенном шифровании'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          return;
+        }
         await ApiService.instance.sendFileMessage(
           widget.chatId,
           senderId: _actualMyId,
@@ -430,7 +506,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isEncryptionPasswordSetForCurrentChat =
       false; // TODO: hook real state later
   ChatEncryptionConfig? _encryptionConfigForCurrentChat;
-  bool _sendEncryptedForCurrentChat = false;
+  bool _sendEncryptedForCurrentChat = true;
   bool _specialMessagesEnabled = false;
 
   bool _formatWarningVisible = false;
@@ -897,7 +973,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _encryptionConfigForCurrentChat = cfg;
       _isEncryptionPasswordSetForCurrentChat =
           cfg != null && cfg.password.isNotEmpty;
-      _sendEncryptedForCurrentChat = cfg?.sendEncrypted ?? false;
+      _sendEncryptedForCurrentChat = cfg?.sendEncrypted ?? true;
     });
   }
 
@@ -4729,37 +4805,45 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(24),
-                          onTap: isBlocked
-                              ? null
-                              : () async {
-                                  final result = await _pickPhotosFlow(context);
-                                  if (result != null &&
-                                      result.paths.isNotEmpty) {
-                                    await ApiService.instance.sendPhotoMessages(
-                                      widget.chatId,
-                                      localPaths: result.paths,
-                                      caption: result.caption,
-                                      senderId: _actualMyId,
-                                    );
-                                  }
-                                },
-                          child: Padding(
-                            padding: const EdgeInsets.all(6.0),
-                            child: Icon(
-                              Icons.photo_library_outlined,
-                              color: isBlocked
-                                  ? Theme.of(
-                                      context,
-                                    ).colorScheme.onSurface.withOpacity(0.3)
-                                  : Theme.of(context).colorScheme.primary,
-                              size: 24,
+                      Builder(
+                        builder: (context) {
+                          final isEncryptionActive =
+                              _encryptionConfigForCurrentChat != null &&
+                              _encryptionConfigForCurrentChat!.password.isNotEmpty &&
+                              _sendEncryptedForCurrentChat;
+                          return Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(24),
+                              onTap: (isBlocked || isEncryptionActive)
+                                  ? null
+                                  : () async {
+                                      final result = await _pickPhotosFlow(context);
+                                      if (result != null &&
+                                          result.paths.isNotEmpty) {
+                                        await ApiService.instance.sendPhotoMessages(
+                                          widget.chatId,
+                                          localPaths: result.paths,
+                                          caption: result.caption,
+                                          senderId: _actualMyId,
+                                        );
+                                      }
+                                    },
+                              child: Padding(
+                                padding: const EdgeInsets.all(6.0),
+                                child: Icon(
+                                  Icons.photo_library_outlined,
+                                  color: (isBlocked || isEncryptionActive)
+                                      ? Theme.of(
+                                          context,
+                                        ).colorScheme.onSurface.withOpacity(0.3)
+                                      : Theme.of(context).colorScheme.primary,
+                                  size: 24,
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
+                          );
+                        },
                       ),
                       if (context.watch<ThemeProvider>().messageTransition ==
                           TransitionOption.slide)
