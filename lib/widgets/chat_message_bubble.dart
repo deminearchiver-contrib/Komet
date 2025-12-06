@@ -1407,11 +1407,10 @@ class ChatMessageBubble extends StatelessWidget {
 
     if (onReaction != null || (isMe && (onEdit != null || onDelete != null))) {
       if (isMobile) {
-        messageContent = GestureDetector(
-          onTapDown: (TapDownDetails details) {
-            _showMessageContextMenu(context, details.globalPosition);
-          },
+        // На мобильных: панель открывается только при долгом нажатии (1 секунда)
+        messageContent = _LongPressContextMenuWrapper(
           child: messageContent,
+          onShowMenu: (offset) => _showMessageContextMenu(context, offset),
         );
       } else {
         messageContent = GestureDetector(
@@ -4781,16 +4780,13 @@ class _LongPressContextMenuWrapper extends StatefulWidget {
 
 class _LongPressContextMenuWrapperState
     extends State<_LongPressContextMenuWrapper> {
-  static const Duration _longPressDuration = Duration(milliseconds: 700);
+  static const Duration _longPressDuration = Duration(seconds: 1);
 
   Timer? _timer;
-  bool _isLongPressTriggered = false;
 
   void _onPointerDown(PointerDownEvent event) {
-    _isLongPressTriggered = false;
     _timer?.cancel();
     _timer = Timer(_longPressDuration, () {
-      _isLongPressTriggered = true;
       widget.onShowMenu(event.position);
     });
   }
