@@ -684,14 +684,117 @@ class ChatMessageBubble extends StatelessWidget {
               ),
               const SizedBox(height: 6),
             ],
-            if (text.isNotEmpty)
-              Text(
-                text,
-                style: TextStyle(
-                  color: textColor.withOpacity(0.9 * messageTextOpacity),
-                  fontSize: 14,
-                ),
+            if (text.isNotEmpty) ...[
+              FutureBuilder<ChatEncryptionConfig?>(
+                future: isEncryptionPasswordSet && chatId != null
+                    ? ChatEncryptionService.getConfigForChat(chatId!)
+                    : Future.value(null),
+                builder: (context, snapshot) {
+                  // Получаем элементы форматирования из пересланного сообщения
+                  final elements = (forwardedMessage['elements'] as List?)
+                      ?.map((e) => (e as Map).cast<String, dynamic>())
+                      .toList() ?? [];
+                  
+                  // Проверяем, зашифрован ли текст пересланного сообщения
+                  String displayText = text;
+                  bool isEncrypted = ChatEncryptionService.isEncryptedMessage(text);
+                  String? decryptedForwardedText;
+                  
+                  // Пытаемся расшифровать, если есть конфиг
+                  if (isEncrypted && snapshot.hasData && snapshot.data != null) {
+                    decryptedForwardedText = ChatEncryptionService.decryptWithPassword(
+                      snapshot.data!.password,
+                      text,
+                    );
+                    if (decryptedForwardedText != null) {
+                      displayText = decryptedForwardedText;
+                    }
+                  }
+                  
+                  // Стили для текста
+                  final defaultTextStyle = TextStyle(
+                    color: textColor.withOpacity(0.9 * messageTextOpacity),
+                    fontSize: 14,
+                  );
+                  
+                  final linkStyle = TextStyle(
+                    color: textColor.withOpacity(0.9 * messageTextOpacity),
+                    fontSize: 14,
+                    decoration: TextDecoration.underline,
+                  );
+                  
+                  // Функция для открытия ссылок
+                  Future<void> onOpenLink(LinkableElement link) async {
+                    final uri = Uri.parse(link.url);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    } else {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Не удалось открыть ссылку: ${link.url}')),
+                        );
+                      }
+                    }
+                  }
+                  
+                  // Если сообщение зашифровано и не расшифровано
+                  if (isEncrypted && !isEncryptionPasswordSet) {
+                    return Text(
+                      'это зашифрованное сообщение, для его отображения поставьте пароль шифрования на чат.',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontStyle: FontStyle.italic,
+                        fontSize: 14,
+                      ),
+                    );
+                  }
+                  
+                  if (isEncrypted && isEncryptionPasswordSet && snapshot.hasData && snapshot.data != null && decryptedForwardedText == null) {
+                    return Text(
+                      'некорректный ключ расшифровки, пароль точно верен?',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontStyle: FontStyle.italic,
+                        fontSize: 14,
+                      ),
+                    );
+                  }
+                  
+                  // Если есть расшифрованный текст, показываем иконку замка
+                  if (decryptedForwardedText != null) {
+                    return Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6.0, top: 2.0),
+                          child: Icon(
+                            Icons.lock,
+                            size: 14,
+                            color: textColor.withOpacity(0.7 * messageTextOpacity),
+                          ),
+                        ),
+                        _buildMixedMessageContent(
+                          displayText,
+                          defaultTextStyle,
+                          linkStyle,
+                          onOpenLink,
+                          elements: elements,
+                        ),
+                      ],
+                    );
+                  }
+                  
+                  // Форматируем текст с поддержкой komet и ссылок
+                  return _buildMixedMessageContent(
+                    displayText,
+                    defaultTextStyle,
+                    linkStyle,
+                    onOpenLink,
+                    elements: elements,
+                  );
+                },
               ),
+            ],
           ],
         ),
       ),
