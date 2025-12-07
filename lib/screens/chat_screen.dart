@@ -526,6 +526,8 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _specialMessagesEnabled = true;
 
   bool _formatWarningVisible = false;
+  bool _hasTextSelection = false;
+  Timer? _selectionCheckTimer;
 
   bool _showKometColorPicker = false;
   String? _currentKometColorPrefix;
@@ -804,6 +806,18 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _textController.addListener(() {
       _handleTextChangedForKometColor();
+      _updateTextSelectionState();
+    });
+
+    _textFocusNode.addListener(() {
+      if (_textFocusNode.hasFocus) {
+        _startSelectionCheck();
+      } else {
+        _stopSelectionCheck();
+        setState(() {
+          _hasTextSelection = false;
+        });
+      }
     });
   }
 
@@ -2203,7 +2217,39 @@ class _ChatScreenState extends State<ChatScreen> {
         'from': from,
         'length': length,
       });
+      _textController.selection = selection;
     });
+  }
+
+  void _updateTextSelectionState() {
+    final selection = _textController.selection;
+    final hasSelection =
+        selection.isValid &&
+        !selection.isCollapsed &&
+        selection.end > selection.start;
+    if (_hasTextSelection != hasSelection) {
+      setState(() {
+        _hasTextSelection = hasSelection;
+      });
+    }
+  }
+
+  void _startSelectionCheck() {
+    _stopSelectionCheck();
+    _selectionCheckTimer = Timer.periodic(const Duration(milliseconds: 100), (
+      timer,
+    ) {
+      if (!_textFocusNode.hasFocus) {
+        _stopSelectionCheck();
+        return;
+      }
+      _updateTextSelectionState();
+    });
+  }
+
+  void _stopSelectionCheck() {
+    _selectionCheckTimer?.cancel();
+    _selectionCheckTimer = null;
   }
 
   void _resetDraftFormattingIfNeeded(String newText) {
@@ -4542,152 +4588,123 @@ class _ChatScreenState extends State<ChatScreen> {
                                 }
                                 return KeyEventResult.ignored;
                               },
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  TextField(
-                                    controller: _textController,
-                                    enabled: !isBlocked,
-                                    keyboardType: TextInputType.multiline,
-                                    textInputAction: TextInputAction.newline,
-                                    minLines: 1,
-                                    maxLines: 5,
-                                    decoration: InputDecoration(
-                                      hintText: isBlocked
-                                          ? 'Пользователь заблокирован'
-                                          : 'Сообщение...',
-                                      filled: true,
-                                      isDense: true,
-                                      fillColor: isBlocked
-                                          ? Theme.of(context)
-                                                .colorScheme
-                                                .surfaceContainerHighest
-                                                .withOpacity(0.25)
-                                          : Theme.of(context)
-                                                .colorScheme
-                                                .surfaceContainerHighest
-                                                .withOpacity(0.4),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(24),
-                                        borderSide: BorderSide.none,
-                                      ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(24),
-                                        borderSide: BorderSide.none,
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(24),
-                                        borderSide: BorderSide.none,
-                                      ),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            horizontal: 18.0,
-                                            vertical: 12.0,
-                                          ),
+                              child: TextField(
+                                controller: _textController,
+                                enabled: !isBlocked,
+                                keyboardType: TextInputType.multiline,
+                                textInputAction: TextInputAction.newline,
+                                minLines: 1,
+                                maxLines: 5,
+                                contextMenuBuilder: (context, editableTextState) {
+                                  if (isBlocked) {
+                                    return AdaptiveTextSelectionToolbar.editableText(
+                                      editableTextState: editableTextState,
+                                    );
+                                  }
+
+                                  final selection = _textController.selection;
+                                  if (!selection.isValid ||
+                                      selection.isCollapsed) {
+                                    return AdaptiveTextSelectionToolbar.editableText(
+                                      editableTextState: editableTextState,
+                                    );
+                                  }
+
+                                  final buttonItems = <ContextMenuButtonItem>[
+                                    ContextMenuButtonItem(
+                                      label: 'Копировать',
+                                      onPressed: () {
+                                        editableTextState.copySelection(
+                                          SelectionChangedCause.toolbar,
+                                        );
+                                        ContextMenuController.removeAny();
+                                      },
                                     ),
-                                    onChanged: isBlocked
-                                        ? null
-                                        : (v) {
-                                            _resetDraftFormattingIfNeeded(v);
-                                            if (v.isNotEmpty) {
-                                              _scheduleTypingPing();
-                                            }
-                                          },
+                                    ContextMenuButtonItem(
+                                      label: 'Вырезать',
+                                      onPressed: () {
+                                        editableTextState.cutSelection(
+                                          SelectionChangedCause.toolbar,
+                                        );
+                                        ContextMenuController.removeAny();
+                                      },
+                                    ),
+                                    ContextMenuButtonItem(
+                                      label: 'Жирный',
+                                      onPressed: () {
+                                        _applyTextFormat('STRONG');
+                                        ContextMenuController.removeAny();
+                                      },
+                                    ),
+                                    ContextMenuButtonItem(
+                                      label: 'Курсив',
+                                      onPressed: () {
+                                        _applyTextFormat('EMPHASIZED');
+                                        ContextMenuController.removeAny();
+                                      },
+                                    ),
+                                    ContextMenuButtonItem(
+                                      label: 'Подчеркнуть',
+                                      onPressed: () {
+                                        _applyTextFormat('UNDERLINE');
+                                        ContextMenuController.removeAny();
+                                      },
+                                    ),
+                                    ContextMenuButtonItem(
+                                      label: 'Зачеркнуть',
+                                      onPressed: () {
+                                        _applyTextFormat('STRIKETHROUGH');
+                                        ContextMenuController.removeAny();
+                                      },
+                                    ),
+                                  ];
+
+                                  return AdaptiveTextSelectionToolbar.buttonItems(
+                                    anchors:
+                                        editableTextState.contextMenuAnchors,
+                                    buttonItems: buttonItems,
+                                  );
+                                },
+                                decoration: InputDecoration(
+                                  hintText: isBlocked
+                                      ? 'Пользователь заблокирован'
+                                      : 'Сообщение...',
+                                  filled: true,
+                                  isDense: true,
+                                  fillColor: isBlocked
+                                      ? Theme.of(context)
+                                            .colorScheme
+                                            .surfaceContainerHighest
+                                            .withOpacity(0.25)
+                                      : Theme.of(context)
+                                            .colorScheme
+                                            .surfaceContainerHighest
+                                            .withOpacity(0.4),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                    borderSide: BorderSide.none,
                                   ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      IconButton(
-                                        iconSize: 18,
-                                        padding: EdgeInsets.zero,
-                                        visualDensity: VisualDensity.compact,
-                                        icon: const Icon(Icons.format_bold),
-                                        onPressed: isBlocked
-                                            ? null
-                                            : () => _applyTextFormat('STRONG'),
-                                        tooltip: 'Жирный',
-                                      ),
-                                      IconButton(
-                                        iconSize: 18,
-                                        padding: EdgeInsets.zero,
-                                        visualDensity: VisualDensity.compact,
-                                        icon: const Icon(Icons.format_italic),
-                                        onPressed: isBlocked
-                                            ? null
-                                            : () => _applyTextFormat(
-                                                'EMPHASIZED',
-                                              ),
-                                        tooltip: 'Курсив',
-                                      ),
-                                      IconButton(
-                                        iconSize: 18,
-                                        padding: EdgeInsets.zero,
-                                        visualDensity: VisualDensity.compact,
-                                        icon: const Icon(
-                                          Icons.format_underline,
-                                        ),
-                                        onPressed: isBlocked
-                                            ? null
-                                            : () =>
-                                                  _applyTextFormat('UNDERLINE'),
-                                        tooltip: 'Подчеркнуть',
-                                      ),
-                                      IconButton(
-                                        iconSize: 18,
-                                        padding: EdgeInsets.zero,
-                                        visualDensity: VisualDensity.compact,
-                                        icon: const Icon(
-                                          Icons.format_strikethrough,
-                                        ),
-                                        onPressed: isBlocked
-                                            ? null
-                                            : () => _applyTextFormat(
-                                                'STRIKETHROUGH',
-                                              ),
-                                        tooltip: 'Зачеркнуть',
-                                      ),
-                                      IconButton(
-                                        iconSize: 18,
-                                        padding: EdgeInsets.zero,
-                                        visualDensity: VisualDensity.compact,
-                                        icon: const Icon(Icons.close),
-                                        onPressed: isBlocked
-                                            ? null
-                                            : () {
-                                                setState(() {
-                                                  _textController.elements
-                                                      .clear();
-                                                  _formatWarningVisible = false;
-                                                });
-                                              },
-                                        tooltip: 'Сбросить формат',
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: AnimatedOpacity(
-                                          opacity: _formatWarningVisible
-                                              ? 1
-                                              : 0,
-                                          duration: const Duration(
-                                            milliseconds: 200,
-                                          ),
-                                          child: Text(
-                                            'Форматирование не доступно в шифрованных сообщениях.',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: Theme.of(
-                                                context,
-                                              ).colorScheme.error,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                    borderSide: BorderSide.none,
                                   ),
-                                ],
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 18.0,
+                                    vertical: 12.0,
+                                  ),
+                                ),
+                                onChanged: isBlocked
+                                    ? null
+                                    : (v) {
+                                        _resetDraftFormattingIfNeeded(v);
+                                        if (v.isNotEmpty) {
+                                          _scheduleTypingPing();
+                                        }
+                                      },
                               ),
                             ),
                           ],
@@ -5450,6 +5467,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _typingTimer?.cancel();
+    _stopSelectionCheck();
     _apiSubscription?.cancel();
     _textController.removeListener(_handleTextChangedForKometColor);
     _textController.dispose();
