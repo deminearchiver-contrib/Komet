@@ -164,7 +164,8 @@ class _BottomSheetMusicPlayerState extends State<BottomSheetMusicPlayer>
       animation: _heightAnimation,
       builder: (context, child) {
         final screenHeight = MediaQuery.of(context).size.height;
-        final collapsedHeight = 88.0;
+        final bottomPadding = MediaQuery.of(context).padding.bottom;
+        final collapsedHeight = 88.0 + bottomPadding;
         final expandedHeight = screenHeight * 0.85;
         final fullscreenHeight = screenHeight;
 
@@ -284,6 +285,7 @@ class _BottomSheetMusicPlayerState extends State<BottomSheetMusicPlayer>
     return SafeArea(
       key: const ValueKey('collapsed'),
       top: false,
+      bottom: true,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -411,6 +413,7 @@ class _BottomSheetMusicPlayerState extends State<BottomSheetMusicPlayer>
     return SafeArea(
       key: const ValueKey('expanded'),
       top: _currentState == _PlayerState.fullscreen,
+      bottom: true,
       child: Column(
         children: [
           Row(
@@ -435,12 +438,13 @@ class _BottomSheetMusicPlayerState extends State<BottomSheetMusicPlayer>
             ],
           ),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                   const SizedBox(height: 8),
                   // Album art with hero animation
                   LayoutBuilder(
@@ -702,8 +706,55 @@ class _BottomSheetMusicPlayerState extends State<BottomSheetMusicPlayer>
                       ),
                     ],
                   ),
-                  SizedBox(height: MediaQuery.of(context).padding.bottom + 24),
-                ],
+                  const SizedBox(height: 32),
+                  // Volume control
+                  Row(
+                    children: [
+                      Icon(
+                        musicPlayer.volume == 0
+                            ? Icons.volume_off_rounded
+                            : musicPlayer.volume < 0.5
+                                ? Icons.volume_down_rounded
+                                : Icons.volume_up_rounded,
+                        size: 20,
+                        color: colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            activeTrackColor: colorScheme.primary,
+                            inactiveTrackColor: colorScheme.surfaceContainerHigh,
+                            thumbColor: colorScheme.primary,
+                            overlayColor: colorScheme.primary.withOpacity(0.1),
+                            thumbShape: const RoundSliderThumbShape(
+                              enabledThumbRadius: 6,
+                            ),
+                            trackHeight: 3,
+                          ),
+                          child: Slider(
+                            value: musicPlayer.volume,
+                            onChanged: (value) {
+                              HapticFeedback.selectionClick();
+                              musicPlayer.setVolume(value);
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        '${(musicPlayer.volume * 100).round()}%',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurface.withOpacity(0.7),
+                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  ],
+                ),
               ),
             ),
           ),

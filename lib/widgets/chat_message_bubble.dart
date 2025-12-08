@@ -27,6 +27,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:gwid/services/cache_service.dart';
 import 'package:video_player/video_player.dart';
 import 'package:gwid/services/music_player_service.dart';
+import 'package:gwid/widgets/bottom_sheet_music_player.dart';
 import 'package:platform_info/platform_info.dart';
 import 'package:gwid/utils/download_path_helper.dart';
 import 'package:gwid/services/chat_encryption_service.dart';
@@ -451,13 +452,14 @@ class ChatMessageBubble extends StatelessWidget {
   }
 
   EdgeInsets _getMessageMargin(BuildContext context) {
+    // ОТСТУПЫ МЕЖДУ СООБЩЕНИЯМИ - можно менять здесь
     if (isLastInGroup) {
-      return const EdgeInsets.only(bottom: 12);
+      return const EdgeInsets.only(bottom: 6); // Было: 12
     }
     if (isFirstInGroup) {
-      return const EdgeInsets.only(bottom: 3);
+      return const EdgeInsets.only(bottom: 2); // Было: 3
     }
-    return const EdgeInsets.only(bottom: 3);
+    return const EdgeInsets.only(bottom: 2); // Было: 3
   }
 
   Widget _buildForwardedMessage(
@@ -540,7 +542,11 @@ class ChatMessageBubble extends StatelessWidget {
       onTap: handleTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        // ОТСТУПЫ ПЕРЕСЛАННОГО СООБЩЕНИЯ - можно менять здесь
+        padding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 4,
+        ), // Было: 6
         decoration: BoxDecoration(
           color: textColor.withOpacity(0.08 * messageTextOpacity),
           border: Border(
@@ -639,18 +645,13 @@ class ChatMessageBubble extends StatelessWidget {
                 isUltraOptimized,
                 messageTextOpacity,
               ),
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {},
-                onLongPress: () {},
-                child: Column(
-                  children: _buildAudioWithCaption(
-                    context,
-                    attaches,
-                    textColor,
-                    isUltraOptimized,
-                    messageTextOpacity,
-                  ),
+              Column(
+                children: _buildAudioWithCaption(
+                  context,
+                  attaches,
+                  textColor,
+                  isUltraOptimized,
+                  messageTextOpacity,
                 ),
               ),
               ..._buildPhotosWithCaption(
@@ -691,52 +692,66 @@ class ChatMessageBubble extends StatelessWidget {
                     : Future.value(null),
                 builder: (context, snapshot) {
                   // Получаем элементы форматирования из пересланного сообщения
-                  final elements = (forwardedMessage['elements'] as List?)
-                      ?.map((e) => (e as Map).cast<String, dynamic>())
-                      .toList() ?? [];
-                  
+                  final elements =
+                      (forwardedMessage['elements'] as List?)
+                          ?.map((e) => (e as Map).cast<String, dynamic>())
+                          .toList() ??
+                      [];
+
                   // Проверяем, зашифрован ли текст пересланного сообщения
                   String displayText = text;
-                  bool isEncrypted = ChatEncryptionService.isEncryptedMessage(text);
+                  bool isEncrypted = ChatEncryptionService.isEncryptedMessage(
+                    text,
+                  );
                   String? decryptedForwardedText;
-                  
+
                   // Пытаемся расшифровать, если есть конфиг
-                  if (isEncrypted && snapshot.hasData && snapshot.data != null) {
-                    decryptedForwardedText = ChatEncryptionService.decryptWithPassword(
-                      snapshot.data!.password,
-                      text,
-                    );
+                  if (isEncrypted &&
+                      snapshot.hasData &&
+                      snapshot.data != null) {
+                    decryptedForwardedText =
+                        ChatEncryptionService.decryptWithPassword(
+                          snapshot.data!.password,
+                          text,
+                        );
                     if (decryptedForwardedText != null) {
                       displayText = decryptedForwardedText;
                     }
                   }
-                  
+
                   // Стили для текста
                   final defaultTextStyle = TextStyle(
                     color: textColor.withOpacity(0.9 * messageTextOpacity),
                     fontSize: 14,
                   );
-                  
+
                   final linkStyle = TextStyle(
                     color: textColor.withOpacity(0.9 * messageTextOpacity),
                     fontSize: 14,
                     decoration: TextDecoration.underline,
                   );
-                  
+
                   // Функция для открытия ссылок
                   Future<void> onOpenLink(LinkableElement link) async {
                     final uri = Uri.parse(link.url);
                     if (await canLaunchUrl(uri)) {
-                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      );
                     } else {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Не удалось открыть ссылку: ${link.url}')),
+                          SnackBar(
+                            content: Text(
+                              'Не удалось открыть ссылку: ${link.url}',
+                            ),
+                          ),
                         );
                       }
                     }
                   }
-                  
+
                   // Если сообщение зашифровано и не расшифровано
                   if (isEncrypted && !isEncryptionPasswordSet) {
                     return Text(
@@ -748,8 +763,12 @@ class ChatMessageBubble extends StatelessWidget {
                       ),
                     );
                   }
-                  
-                  if (isEncrypted && isEncryptionPasswordSet && snapshot.hasData && snapshot.data != null && decryptedForwardedText == null) {
+
+                  if (isEncrypted &&
+                      isEncryptionPasswordSet &&
+                      snapshot.hasData &&
+                      snapshot.data != null &&
+                      decryptedForwardedText == null) {
                     return Text(
                       'некорректный ключ расшифровки, пароль точно верен?',
                       style: TextStyle(
@@ -759,7 +778,7 @@ class ChatMessageBubble extends StatelessWidget {
                       ),
                     );
                   }
-                  
+
                   // Если есть расшифрованный текст, показываем иконку замка
                   if (decryptedForwardedText != null) {
                     return Wrap(
@@ -770,7 +789,9 @@ class ChatMessageBubble extends StatelessWidget {
                           child: Icon(
                             Icons.lock,
                             size: 14,
-                            color: textColor.withOpacity(0.7 * messageTextOpacity),
+                            color: textColor.withOpacity(
+                              0.7 * messageTextOpacity,
+                            ),
                           ),
                         ),
                         _buildMixedMessageContent(
@@ -783,7 +804,7 @@ class ChatMessageBubble extends StatelessWidget {
                       ],
                     );
                   }
-                  
+
                   // Форматируем текст с поддержкой komet и ссылок
                   return _buildMixedMessageContent(
                     displayText,
@@ -1311,8 +1332,9 @@ class ChatMessageBubble extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    // ОТСТУПЫ РЕАКЦИЙ - можно менять здесь
     return Padding(
-      padding: const EdgeInsets.only(top: 8.0),
+      padding: const EdgeInsets.only(top: 0.0), // Было: 8.0
       child: Wrap(
         spacing: 4.0,
         runSpacing: 4.0,
@@ -1515,7 +1537,7 @@ class ChatMessageBubble extends StatelessWidget {
 
     if (onReaction != null || (isMe && (onEdit != null || onDelete != null))) {
       if (isMobile) {
-        // На мобильных: панель открывается только при долгом нажатии (1 секунда)
+        // На мобильных: панель открывается только при долгом нажатии (0.6 секунды)
         messageContent = _LongPressContextMenuWrapper(
           child: messageContent,
           onShowMenu: (offset) => _showMessageContextMenu(context, offset),
@@ -1720,9 +1742,10 @@ class ChatMessageBubble extends StatelessWidget {
                 constraints: BoxConstraints(
                   maxWidth: MediaQuery.of(context).size.width * 0.65,
                 ),
+                // ВНУТРЕННИЕ ОТСТУПЫ СООБЩЕНИЯ - можно менять здесь
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 8,
+                  vertical: 4.5, // Было: 8
                 ),
                 margin: _getMessageMargin(context),
                 decoration: bubbleDecoration,
@@ -1733,9 +1756,13 @@ class ChatMessageBubble extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Имя отправителя
+                    // ОТСТУПЫ НИКА - можно менять здесь
                     if (isGroupChat && !isMe && senderName != null)
                       Padding(
-                        padding: const EdgeInsets.only(left: 2.0, bottom: 2.0),
+                        padding: const EdgeInsets.only(
+                          left: 2.0,
+                          bottom: 0.0,
+                        ), // Было: bottom: 2.0
                         child: Text(
                           senderName!,
                           style: TextStyle(
@@ -1751,7 +1778,7 @@ class ChatMessageBubble extends StatelessWidget {
                         ),
                       ),
                     if (isGroupChat && !isMe && senderName != null)
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2), // Было: 4
 
                     Text(
                       'Это сообщение не поддерживается в Вашей версии Komet. '
@@ -1767,7 +1794,8 @@ class ChatMessageBubble extends StatelessWidget {
                       textAlign: TextAlign.left,
                     ),
 
-                    const SizedBox(height: 8.0),
+                    // ОТСТУПЫ ВРЕМЕНИ - можно менять здесь
+                    const SizedBox(height: 0.0), // Было: 8.0
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -1877,7 +1905,11 @@ class ChatMessageBubble extends StatelessWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.only(top: 4, right: 6),
+                  // ОТСТУПЫ ВРЕМЕНИ - можно менять здесь
+                  padding: const EdgeInsets.only(
+                    top: 0,
+                    right: 6,
+                  ), // Было: top: 4
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -1929,8 +1961,12 @@ class ChatMessageBubble extends StatelessWidget {
         ? const Color(0xFF9bb5c7)
         : const Color(0xFF6b7280);
 
+    // ОТСТУПЫ ВИДЕО - можно менять здесь
     Widget videoContent = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12.0,
+        vertical: 6.0,
+      ), // Было: 8.0
       child: Column(
         crossAxisAlignment: isMe
             ? CrossAxisAlignment.end
@@ -1956,7 +1992,11 @@ class ChatMessageBubble extends StatelessWidget {
                       lowQualityBytes: previewBytes,
                     ),
                   Padding(
-                    padding: const EdgeInsets.only(top: 4, right: 6),
+                    // ОТСТУПЫ ВРЕМЕНИ - можно менять здесь
+                    padding: const EdgeInsets.only(
+                      top: 2,
+                      right: 6,
+                    ), // Было: top: 4
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -2021,8 +2061,12 @@ class ChatMessageBubble extends StatelessWidget {
         ? const Color(0xFF9bb5c7)
         : const Color(0xFF6b7280);
 
+    // ОТСТУПЫ ФОТО - можно менять здесь
     Widget photoContent = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12.0,
+        vertical: 6.0,
+      ), // Было: 8.0
       child: Column(
         crossAxisAlignment: isMe
             ? CrossAxisAlignment.end
@@ -2057,7 +2101,11 @@ class ChatMessageBubble extends StatelessWidget {
                     isUltraOptimized,
                   ),
                   Padding(
-                    padding: const EdgeInsets.only(top: 4, right: 6),
+                    // ОТСТУПЫ ВРЕМЕНИ - можно менять здесь
+                    padding: const EdgeInsets.only(
+                      top: 2,
+                      right: 6,
+                    ), // Было: top: 4
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -2105,8 +2153,12 @@ class ChatMessageBubble extends StatelessWidget {
         ? const Color(0xFF9bb5c7)
         : const Color(0xFF6b7280);
 
+    // ОТСТУПЫ ВИДЕО - можно менять здесь
     Widget videoContent = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12.0,
+        vertical: 6.0,
+      ), // Было: 8.0
       child: Column(
         crossAxisAlignment: isMe
             ? CrossAxisAlignment.end
@@ -2192,7 +2244,11 @@ class ChatMessageBubble extends StatelessWidget {
                           ),
                         if (index == videos.length - 1)
                           Padding(
-                            padding: const EdgeInsets.only(top: 4, right: 6),
+                            // ОТСТУПЫ ВРЕМЕНИ - можно менять здесь
+                            padding: const EdgeInsets.only(
+                              top: 2,
+                              right: 6,
+                            ), // Было: top: 4
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -3176,6 +3232,11 @@ class ChatMessageBubble extends StatelessWidget {
 
                           final musicPlayer = MusicPlayerService();
                           await musicPlayer.playTrack(track);
+                          // Автоматически разворачиваем плеер при запуске трека
+                          BottomSheetMusicPlayer.isExpandedNotifier.value =
+                              true;
+                          BottomSheetMusicPlayer.isFullscreenNotifier.value =
+                              true;
                         }
                       },
                       icon: const Icon(Icons.play_arrow),
@@ -3668,7 +3729,7 @@ class ChatMessageBubble extends StatelessWidget {
     bool isUltraOptimized,
   ) {
     final borderRadius = BorderRadius.circular(isUltraOptimized ? 4 : 12);
-    
+
     // Получаем максимальную доступную ширину для фотографий
     // Учитываем, что сообщение ограничено 65% ширины экрана, минус отступы
     final screenWidth = MediaQuery.of(context).size.width;
@@ -3678,7 +3739,12 @@ class ChatMessageBubble extends StatelessWidget {
 
     switch (photos.length) {
       case 1:
-        return _buildSinglePhoto(context, photos[0], borderRadius, maxPhotoWidth);
+        return _buildSinglePhoto(
+          context,
+          photos[0],
+          borderRadius,
+          maxPhotoWidth,
+        );
       case 2:
         return _buildTwoPhotos(context, photos, borderRadius, maxPhotoWidth);
       case 3:
@@ -3720,10 +3786,7 @@ class ChatMessageBubble extends StatelessWidget {
     double maxWidth,
   ) {
     return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: 180,
-        maxWidth: maxWidth,
-      ),
+      constraints: BoxConstraints(maxHeight: 180, maxWidth: maxWidth),
       child: Row(
         children: [
           Expanded(
@@ -3761,10 +3824,7 @@ class ChatMessageBubble extends StatelessWidget {
     double maxWidth,
   ) {
     return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: 180,
-        maxWidth: maxWidth,
-      ),
+      constraints: BoxConstraints(maxHeight: 180, maxWidth: maxWidth),
       child: Row(
         children: [
           // Левая большая фотка
@@ -3824,10 +3884,7 @@ class ChatMessageBubble extends StatelessWidget {
     double maxWidth,
   ) {
     return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: 180,
-        maxWidth: maxWidth,
-      ),
+      constraints: BoxConstraints(maxHeight: 180, maxWidth: maxWidth),
       child: Column(
         children: [
           // Верхний ряд
@@ -3906,10 +3963,7 @@ class ChatMessageBubble extends StatelessWidget {
     // Используем фиксированную высоту для каждой строки, чтобы избежать проблем с unbounded constraints
     const double rowHeight = 89.0; // 180 / 2 - 2 (spacing)
     return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: 180,
-        maxWidth: maxWidth,
-      ),
+      constraints: BoxConstraints(maxHeight: 180, maxWidth: maxWidth),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -4217,8 +4271,12 @@ class ChatMessageBubble extends StatelessWidget {
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             onTap: onSenderNameTap,
+            // ОТСТУПЫ НИКА (еще одно место) - можно менять здесь
             child: Padding(
-              padding: const EdgeInsets.only(left: 2.0, bottom: 2.0),
+              padding: const EdgeInsets.only(
+                left: 2.0,
+                bottom: 0.0,
+              ), // Было: bottom: 2.0
               child: Text(
                 senderName!,
                 style: TextStyle(
@@ -4235,7 +4293,9 @@ class ChatMessageBubble extends StatelessWidget {
             ),
           ),
         ),
-      if (isGroupChat && !isMe && senderName != null) const SizedBox(height: 4),
+      // ОТСТУПЫ ПОСЛЕ НИКА - можно менять здесь
+      if (isGroupChat && !isMe && senderName != null)
+        const SizedBox(height: 2), // Было: 4
       if (message.isForwarded && message.link != null) ...[
         if (message.link is Map<String, dynamic>)
           _buildForwardedMessage(
@@ -4880,7 +4940,11 @@ class ChatMessageBubble extends StatelessWidget {
       constraints: BoxConstraints(
         maxWidth: MediaQuery.of(context).size.width * 0.65,
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      // ОТСТУПЫ (еще одно место) - можно менять здесь
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 4.5,
+      ), // Было: 8
       margin: _getMessageMargin(context),
       decoration: decoration,
       child: Column(
@@ -4945,7 +5009,7 @@ class _LongPressContextMenuWrapper extends StatefulWidget {
 
 class _LongPressContextMenuWrapperState
     extends State<_LongPressContextMenuWrapper> {
-  static const Duration _longPressDuration = Duration(milliseconds: 700);
+  static const Duration _longPressDuration = Duration(milliseconds: 350);
   static const double _maxMovementDistance =
       15.0; // Максимальное расстояние для открытия панели
 
@@ -6244,6 +6308,7 @@ class FullScreenPhotoGallery extends StatefulWidget {
 
 class _FullScreenPhotoGalleryState extends State<FullScreenPhotoGallery> {
   late PageController _pageController;
+  late ScrollController _thumbnailsScrollController;
   late int _currentIndex;
   bool _showControls = true;
 
@@ -6252,12 +6317,52 @@ class _FullScreenPhotoGalleryState extends State<FullScreenPhotoGallery> {
     super.initState();
     _currentIndex = widget.initialIndex.clamp(0, widget.photos.length - 1);
     _pageController = PageController(initialPage: _currentIndex);
+    _thumbnailsScrollController = ScrollController();
+
+    // Прокручиваем миниатюры к текущей фотке после инициализации
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollThumbnailsToCurrent();
+    });
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    _thumbnailsScrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollThumbnailsToCurrent() {
+    if (_thumbnailsScrollController.hasClients && widget.photos.length > 1) {
+      // Прокручиваем так, чтобы текущая миниатюра была в центре
+      const normalWidth = 60.0;
+      const currentWidth = 80.0;
+      const margin = 6.0;
+      const itemSpacing = normalWidth + (margin * 2); // 60 + 12
+
+      final screenWidth = MediaQuery.of(context).size.width;
+
+      // Вычисляем позицию начала текущей миниатюры
+      double startPosition = 0.0;
+      for (int i = 0; i < _currentIndex; i++) {
+        startPosition += itemSpacing;
+      }
+
+      // Центр текущей миниатюры
+      final currentCenter = startPosition + (currentWidth / 2);
+
+      // Смещение для центрирования
+      final targetOffset = currentCenter - (screenWidth / 2);
+
+      _thumbnailsScrollController.animateTo(
+        targetOffset.clamp(
+          0.0,
+          _thumbnailsScrollController.position.maxScrollExtent,
+        ),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   Widget _buildPhotoWidget(Map<String, dynamic> attach) {
@@ -6291,7 +6396,7 @@ class _FullScreenPhotoGalleryState extends State<FullScreenPhotoGallery> {
               child: CircularProgressIndicator(
                 value: loadingProgress.expectedTotalBytes != null
                     ? loadingProgress.cumulativeBytesLoaded /
-                        loadingProgress.expectedTotalBytes!
+                          loadingProgress.expectedTotalBytes!
                     : null,
                 color: Colors.white,
               ),
@@ -6319,11 +6424,7 @@ class _FullScreenPhotoGalleryState extends State<FullScreenPhotoGallery> {
       child = _imagePlaceholder();
     }
 
-    return InteractiveViewer(
-      minScale: 0.5,
-      maxScale: 4.0,
-      child: child,
-    );
+    return InteractiveViewer(minScale: 0.5, maxScale: 4.0, child: child);
   }
 
   Widget _imagePlaceholder() {
@@ -6341,7 +6442,7 @@ class _FullScreenPhotoGalleryState extends State<FullScreenPhotoGallery> {
 
   Future<void> _downloadPhoto() async {
     if (_currentIndex < 0 || _currentIndex >= widget.photos.length) return;
-    
+
     final attach = widget.photos[_currentIndex];
 
     try {
@@ -6426,6 +6527,8 @@ class _FullScreenPhotoGalleryState extends State<FullScreenPhotoGallery> {
               setState(() {
                 _currentIndex = index;
               });
+              // Прокручиваем миниатюры к текущей фотке
+              _scrollThumbnailsToCurrent();
             },
             itemCount: widget.photos.length,
             itemBuilder: (context, index) {
@@ -6435,9 +6538,7 @@ class _FullScreenPhotoGalleryState extends State<FullScreenPhotoGallery> {
                     _showControls = !_showControls;
                   });
                 },
-                child: Center(
-                  child: _buildPhotoWidget(widget.photos[index]),
-                ),
+                child: Center(child: _buildPhotoWidget(widget.photos[index])),
               );
             },
           ),
@@ -6483,8 +6584,7 @@ class _FullScreenPhotoGalleryState extends State<FullScreenPhotoGallery> {
                         ),
                       ),
                     // Кнопка скачать
-                    if (widget.photos.length > 1)
-                      const SizedBox(height: 8),
+                    if (widget.photos.length > 1) const SizedBox(height: 8),
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueAccent,
@@ -6506,8 +6606,154 @@ class _FullScreenPhotoGalleryState extends State<FullScreenPhotoGallery> {
                 ),
               ),
             ),
+          // Миниатюры фотографий внизу
+          if (_showControls && widget.photos.length > 1)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                top: false,
+                child: Container(
+                  height: 100,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.7),
+                      ],
+                    ),
+                  ),
+                  child: _buildThumbnailsList(),
+                ),
+              ),
+            ),
         ],
       ),
+    );
+  }
+
+  Widget _buildThumbnailsList() {
+    return ListView.builder(
+      controller: _thumbnailsScrollController,
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      itemCount: widget.photos.length,
+      itemBuilder: (context, index) {
+        final isCurrent = index == _currentIndex;
+        final attach = widget.photos[index];
+        final url = attach['url'] ?? attach['baseUrl'];
+        final preview = attach['previewData'];
+
+        return GestureDetector(
+          onTap: () {
+            _pageController.animateToPage(
+              index,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+            );
+          },
+          child: Container(
+            width: isCurrent ? 80 : 60,
+            height: 80,
+            margin: const EdgeInsets.symmetric(horizontal: 6),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isCurrent ? Colors.white : Colors.white.withOpacity(0.3),
+                width: isCurrent ? 3 : 1,
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(7),
+              child: _buildThumbnailImage(url, preview),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildThumbnailImage(dynamic url, dynamic preview) {
+    if (url is String && url.isNotEmpty) {
+      String thumbnailUrl = url;
+      if (!url.startsWith('file://')) {
+        // Для сетевых изображений используем превью или добавляем параметры для миниатюры
+        if (!url.contains('?')) {
+          thumbnailUrl = '$url?size=small&quality=medium';
+        } else {
+          thumbnailUrl = '$url&size=small&quality=medium';
+        }
+      }
+
+      if (url.startsWith('file://')) {
+        final path = url.replaceFirst('file://', '');
+        return Image.file(
+          File(path),
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+        );
+      } else {
+        return Image.network(
+          thumbnailUrl,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Container(
+              color: Colors.grey[800],
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    value: loadingProgress.expectedTotalBytes != null
+                        ? loadingProgress.cumulativeBytesLoaded /
+                              loadingProgress.expectedTotalBytes!
+                        : null,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              color: Colors.grey[800],
+              child: const Icon(Icons.image, color: Colors.grey, size: 24),
+            );
+          },
+        );
+      }
+    } else if (preview is String && preview.startsWith('data:')) {
+      final idx = preview.indexOf('base64,');
+      if (idx != -1) {
+        final b64 = preview.substring(idx + 7);
+        try {
+          final bytes = base64Decode(b64);
+          return Image.memory(
+            bytes,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+          );
+        } catch (_) {
+          return _thumbnailPlaceholder();
+        }
+      }
+    }
+    return _thumbnailPlaceholder();
+  }
+
+  Widget _thumbnailPlaceholder() {
+    return Container(
+      color: Colors.grey[800],
+      child: const Icon(Icons.image, color: Colors.grey, size: 24),
     );
   }
 }
@@ -6701,6 +6947,11 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
     try {
       if (_isPlaying) {
         await _audioPlayer.pause();
+        if (mounted) {
+          setState(() {
+            _isPlaying = false;
+          });
+        }
       } else {
         if (_isCompleted ||
             (_totalDuration.inMilliseconds > 0 &&
@@ -6779,6 +7030,11 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
           }
         }
         await _audioPlayer.play();
+        if (mounted) {
+          setState(() {
+            _isPlaying = true;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -6847,8 +7103,9 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
             width: 1,
           ),
         ),
+        // ОТСТУПЫ АУДИО ПЛЕЕРА - можно менять здесь
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(10), // Было: 12
           child: Row(
             children: [
               GestureDetector(
@@ -6922,17 +7179,31 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
                         ),
                       )
                     else
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(2),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          backgroundColor: widget.textColor.withOpacity(0.1),
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            widget.textColor.withOpacity(
-                              0.6 * widget.messageTextOpacity,
-                            ),
+                      SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          activeTrackColor: widget.textColor.withOpacity(
+                            0.8 * widget.messageTextOpacity,
                           ),
-                          minHeight: 3,
+                          inactiveTrackColor: widget.textColor.withOpacity(0.1),
+                          thumbColor: widget.textColor.withOpacity(
+                            0.9 * widget.messageTextOpacity,
+                          ),
+                          overlayColor: widget.textColor.withOpacity(0.1),
+                          thumbShape: const RoundSliderThumbShape(
+                            enabledThumbRadius: 6,
+                          ),
+                          trackHeight: 3,
+                        ),
+                        child: Slider(
+                          value: progress.clamp(0.0, 1.0),
+                          onChanged: (value) {
+                            final newPosition = Duration(
+                              milliseconds:
+                                  (_totalDuration.inMilliseconds * value)
+                                      .round(),
+                            );
+                            _seek(newPosition);
+                          },
                         ),
                       ),
                     const SizedBox(height: 4),

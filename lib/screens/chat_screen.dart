@@ -566,6 +566,8 @@ class _ChatScreenState extends State<ChatScreen> {
       index: 0,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutCubic,
+      alignment:
+          1.0, // Прокручиваем к самому низу (1.0 = внизу видимой области для reverse списка)
     );
 
     // После завершения скролла проверяем позицию
@@ -3610,8 +3612,9 @@ class _ChatScreenState extends State<ChatScreen> {
                                         curve: Curves.easeInOut,
                                         builder: (context, value, child) {
                                           return Container(
+                                            // ОТСТУПЫ МЕЖДУ СООБЩЕНИЯМИ (для выделенных) - можно менять здесь
                                             margin: const EdgeInsets.symmetric(
-                                              vertical: 2,
+                                              vertical: 1, // Было: 2
                                             ),
                                             decoration: BoxDecoration(
                                               color: Theme.of(context)
@@ -3749,7 +3752,7 @@ class _ChatScreenState extends State<ChatScreen> {
             bottom:
                 MediaQuery.of(context).viewInsets.bottom +
                 MediaQuery.of(context).padding.bottom +
-                12,
+                0,
             child: _buildTextInput(),
           ),
         ],

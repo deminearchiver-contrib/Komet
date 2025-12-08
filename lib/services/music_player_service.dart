@@ -104,6 +104,7 @@ class MusicPlayerService extends ChangeNotifier {
   bool _isLoading = false;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
+  double _volume = 1.0;
   StreamSubscription<Duration>? _positionSubscription;
   StreamSubscription<Duration?>? _durationSubscription;
   StreamSubscription<PlayerState>? _playerStateSubscription;
@@ -120,8 +121,14 @@ class MusicPlayerService extends ChangeNotifier {
   Duration get position => _position;
   Duration get duration => _duration;
   int get currentIndex => _currentIndex;
+  double get volume => _volume;
 
   Future<void> initialize() async {
+    // Загружаем сохраненную громкость
+    final prefs = await SharedPreferences.getInstance();
+    _volume = prefs.getDouble('music_volume') ?? 1.0;
+    await _audioPlayer.setVolume(_volume);
+
     _positionSubscription = _audioPlayer.positionStream.listen((position) {
       _position = position;
       notifyListeners();
@@ -255,6 +262,14 @@ class MusicPlayerService extends ChangeNotifier {
 
   Future<void> seek(Duration position) async {
     await _audioPlayer.seek(position);
+  }
+
+  Future<void> setVolume(double volume) async {
+    _volume = volume.clamp(0.0, 1.0);
+    await _audioPlayer.setVolume(_volume);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('music_volume', _volume);
+    notifyListeners();
   }
 
   Future<void> next() async {

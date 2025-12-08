@@ -101,6 +101,9 @@ class _MusicLibraryScreenState extends State<MusicLibraryScreen> {
   Future<void> _playTrack(MusicTrack track) async {
     final musicPlayer = MusicPlayerService();
     await musicPlayer.playTrack(track, playlist: _musicTracks);
+    // Автоматически разворачиваем плеер при запуске трека
+    BottomSheetMusicPlayer.isExpandedNotifier.value = true;
+    BottomSheetMusicPlayer.isFullscreenNotifier.value = true;
   }
 
   String _formatFileSize(int bytes) {
@@ -188,8 +191,13 @@ class _MusicLibraryScreenState extends State<MusicLibraryScreen> {
                         itemCount: _musicTracks.length,
                         itemBuilder: (context, index) {
                           final track = _musicTracks[index];
+                          final isCurrentTrack =
+                              musicPlayer.currentTrack?.id == track.id;
                           return Card(
                             margin: const EdgeInsets.only(bottom: 12),
+                            color: isCurrentTrack
+                                ? colorScheme.primaryContainer.withOpacity(0.3)
+                                : null,
                             child: ListTile(
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16,
@@ -304,16 +312,44 @@ class _MusicLibraryScreenState extends State<MusicLibraryScreen> {
                                   ),
                                 ],
                               ),
-                              trailing: IconButton(
-                                onPressed: () => _playTrack(track),
-                                icon: const Icon(Icons.play_arrow),
-                                style: IconButton.styleFrom(
-                                  backgroundColor: colorScheme.primaryContainer,
-                                  foregroundColor:
-                                      colorScheme.onPrimaryContainer,
-                                ),
+                              trailing: Builder(
+                                builder: (context) {
+                                  final isCurrentTrack =
+                                      musicPlayer.currentTrack?.id == track.id;
+                                  final isPlaying = isCurrentTrack &&
+                                      musicPlayer.isPlaying;
+
+                                  return IconButton(
+                                    onPressed: () {
+                                      if (isCurrentTrack && isPlaying) {
+                                        musicPlayer.pause();
+                                      } else {
+                                        _playTrack(track);
+                                      }
+                                    },
+                                    icon: isCurrentTrack && isPlaying
+                                        ? const Icon(Icons.pause)
+                                        : const Icon(Icons.play_arrow),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: isCurrentTrack
+                                          ? colorScheme.primary
+                                          : colorScheme.primaryContainer,
+                                      foregroundColor: isCurrentTrack
+                                          ? colorScheme.onPrimary
+                                          : colorScheme.onPrimaryContainer,
+                                    ),
+                                  );
+                                },
                               ),
-                              onTap: () => _playTrack(track),
+                              onTap: () {
+                                final isCurrentTrack =
+                                    musicPlayer.currentTrack?.id == track.id;
+                                if (isCurrentTrack && musicPlayer.isPlaying) {
+                                  musicPlayer.pause();
+                                } else {
+                                  _playTrack(track);
+                                }
+                              },
                             ),
                           );
                         },
