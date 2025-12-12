@@ -394,6 +394,8 @@ class ChatMessageBubble extends StatelessWidget {
   final String? decryptedText;
 
   final bool isReactionSending;
+  final List<Map<String, dynamic>>? allPhotos;
+  final Function(String)? onGoToMessage;
 
   const ChatMessageBubble({
     super.key,
@@ -429,6 +431,8 @@ class ChatMessageBubble extends StatelessWidget {
     this.isEncryptionPasswordSet = false,
     this.decryptedText,
     this.isReactionSending = false,
+    this.allPhotos,
+    this.onGoToMessage,
   });
 
   String _formatMessageTime(BuildContext context, int timestamp) {
@@ -3674,6 +3678,17 @@ class ChatMessageBubble extends StatelessWidget {
   }
 
   void _openPhotoViewer(BuildContext context, Map<String, dynamic> attach) {
+    if (allPhotos != null && allPhotos!.isNotEmpty) {
+      final initialIndex = allPhotos!.indexWhere(
+        (p) =>
+            (p['url'] ?? p['baseUrl']) == (attach['url'] ?? attach['baseUrl']),
+      );
+      if (initialIndex != -1) {
+        _openPhotoGallery(context, allPhotos!, initialIndex);
+        return;
+      }
+    }
+
     final url = attach['url'] ?? attach['baseUrl'];
     final preview = attach['previewData'];
 
@@ -3723,9 +3738,15 @@ class ChatMessageBubble extends StatelessWidget {
         opaque: false,
         barrierColor: Colors.black,
         pageBuilder: (BuildContext context, _, __) {
-          return FullScreenPhotoViewer(imageChild: child, attach: attach);
+          return FullScreenPhotoViewer(
+            imageChild: child,
+            attach: attach,
+            allPhotos: allPhotos,
+            onGoToMessage: onGoToMessage,
+            messageId: message.id,
+            onOpenGallery: _openPhotoGallery,
+          );
         },
-
         transitionsBuilder: (_, animation, __, page) {
           return FadeTransition(opacity: animation, child: page);
         },
@@ -3738,6 +3759,10 @@ class ChatMessageBubble extends StatelessWidget {
     List<Map<String, dynamic>> photos,
     int initialIndex,
   ) {
+    final messageIds = photos
+        .map((p) => p['_messageId'] as String?)
+        .whereType<String>()
+        .toList();
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
@@ -3746,6 +3771,8 @@ class ChatMessageBubble extends StatelessWidget {
           return FullScreenPhotoGallery(
             photos: photos,
             initialIndex: initialIndex,
+            onGoToMessage: onGoToMessage,
+            messageIds: messageIds.isNotEmpty ? messageIds : null,
           );
         },
         transitionsBuilder: (_, animation, __, page) {
@@ -5685,11 +5712,20 @@ class _MessageContextMenuState extends State<_MessageContextMenu>
 class FullScreenPhotoViewer extends StatefulWidget {
   final Widget imageChild;
   final Map<String, dynamic>? attach;
+  final List<Map<String, dynamic>>? allPhotos;
+  final Function(String)? onGoToMessage;
+  final String? messageId;
+  final void Function(BuildContext, List<Map<String, dynamic>>, int)?
+  onOpenGallery;
 
   const FullScreenPhotoViewer({
     super.key,
     required this.imageChild,
     this.attach,
+    this.allPhotos,
+    this.onGoToMessage,
+    this.messageId,
+    this.onOpenGallery,
   });
 
   @override
@@ -5698,22 +5734,104 @@ class FullScreenPhotoViewer extends StatefulWidget {
 
 class _FullScreenPhotoViewerState extends State<FullScreenPhotoViewer> {
   late final TransformationController _transformationController;
+  late final ScrollController _thumbnailsScrollController;
 
   bool _isPanEnabled = false;
+  bool _showLeftArrow = false;
+  bool _showRightArrow = false;
 
   @override
   void initState() {
     super.initState();
     _transformationController = TransformationController();
+    _thumbnailsScrollController = ScrollController();
 
     _transformationController.addListener(_onTransformChanged);
+    _thumbnailsScrollController.addListener(_updateArrowsVisibility);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToCurrentPhoto();
+      _updateArrowsVisibility();
+    });
   }
 
   @override
   void dispose() {
     _transformationController.removeListener(_onTransformChanged);
+    _thumbnailsScrollController.removeListener(_updateArrowsVisibility);
     _transformationController.dispose();
+    _thumbnailsScrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollToCurrentPhoto() {
+    if (widget.allPhotos == null || widget.allPhotos!.isEmpty) return;
+    if (!_thumbnailsScrollController.hasClients) return;
+
+    final currentUrl = widget.attach?['url'] ?? widget.attach?['baseUrl'];
+    int currentIndex = -1;
+    for (int i = 0; i < widget.allPhotos!.length; i++) {
+      final photoUrl =
+          widget.allPhotos![i]['url'] ?? widget.allPhotos![i]['baseUrl'];
+      if (photoUrl == currentUrl) {
+        currentIndex = i;
+        break;
+      }
+    }
+
+    if (currentIndex == -1) return;
+
+    const itemWidth = 80.0;
+    const itemMargin = 4.0;
+    const itemSpacing = itemWidth + (itemMargin * 2);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final targetOffset =
+        (currentIndex * itemSpacing) - (screenWidth / 2) + (itemWidth / 2);
+
+    _thumbnailsScrollController.animateTo(
+      targetOffset.clamp(
+        0.0,
+        _thumbnailsScrollController.position.maxScrollExtent,
+      ),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void _updateArrowsVisibility() {
+    if (!_thumbnailsScrollController.hasClients) {
+      setState(() {
+        _showLeftArrow = false;
+        _showRightArrow = false;
+      });
+      return;
+    }
+
+    final position = _thumbnailsScrollController.position;
+    setState(() {
+      _showLeftArrow = position.pixels > 0;
+      _showRightArrow = position.pixels < position.maxScrollExtent;
+    });
+  }
+
+  void _scrollLeft() {
+    if (!_thumbnailsScrollController.hasClients) return;
+    final target = _thumbnailsScrollController.offset - 200;
+    _thumbnailsScrollController.animateTo(
+      target.clamp(0.0, _thumbnailsScrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void _scrollRight() {
+    if (!_thumbnailsScrollController.hasClients) return;
+    final target = _thumbnailsScrollController.offset + 200;
+    _thumbnailsScrollController.animateTo(
+      target.clamp(0.0, _thumbnailsScrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
   }
 
   void _onTransformChanged() {
@@ -5825,29 +5943,201 @@ class _FullScreenPhotoViewerState extends State<FullScreenPhotoViewer> {
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                   if (widget.attach != null)
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueAccent,
-                        foregroundColor: Colors.white,
-                        shape: const StadiumBorder(),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert, color: Colors.white),
+                      color: Colors.grey[900],
+                      onSelected: (value) {
+                        if (value == 'save') {
+                          _downloadPhoto();
+                        } else if (value == 'goto' &&
+                            widget.onGoToMessage != null &&
+                            widget.messageId != null) {
+                          Navigator.of(context).pop();
+                          widget.onGoToMessage!(widget.messageId!);
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'save',
+                          child: Row(
+                            children: [
+                              Icon(Icons.save, color: Colors.white),
+                              SizedBox(width: 8),
+                              Text(
+                                'Сохранить фото',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      icon: const Icon(Icons.download),
-                      label: const Text(
-                        'Скачать',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      onPressed: _downloadPhoto,
+                        if (widget.onGoToMessage != null &&
+                            widget.messageId != null)
+                          const PopupMenuItem(
+                            value: 'goto',
+                            child: Row(
+                              children: [
+                                Icon(Icons.message, color: Colors.white),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Перейти к сообщению',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
                 ],
               ),
             ),
           ),
+          if (widget.allPhotos != null && widget.allPhotos!.isNotEmpty)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                height: 100,
+                color: Colors.black.withOpacity(0.7),
+                child: Stack(
+                  children: [
+                    ListView.builder(
+                      controller: _thumbnailsScrollController,
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 40,
+                      ),
+                      itemCount: widget.allPhotos!.length,
+                      itemBuilder: (context, index) {
+                        final photo = widget.allPhotos![index];
+                        final isCurrent =
+                            (photo['url'] ?? photo['baseUrl']) ==
+                            (widget.attach?['url'] ??
+                                widget.attach?['baseUrl']);
+                        return GestureDetector(
+                          onTap: () {
+                            if (widget.onOpenGallery != null) {
+                              Navigator.of(context).pop();
+                              widget.onOpenGallery!(
+                                context,
+                                widget.allPhotos!,
+                                index,
+                              );
+                            }
+                          },
+                          child: Container(
+                            width: 80,
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              border: isCurrent
+                                  ? Border.all(color: Colors.blue, width: 3)
+                                  : null,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: _buildThumbnail(photo),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    if (_showLeftArrow)
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        child: Container(
+                          width: 40,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                              colors: [
+                                Colors.black.withOpacity(0.7),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.chevron_left,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                            onPressed: _scrollLeft,
+                          ),
+                        ),
+                      ),
+                    if (_showRightArrow)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        bottom: 0,
+                        child: Container(
+                          width: 40,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.centerRight,
+                              end: Alignment.centerLeft,
+                              colors: [
+                                Colors.black.withOpacity(0.7),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.chevron_right,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                            onPressed: _scrollRight,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
+    );
+  }
+
+  Widget _buildThumbnail(Map<String, dynamic> attach) {
+    final url = attach['url'] ?? attach['baseUrl'];
+    final preview = attach['previewData'];
+
+    if (url is String && url.isNotEmpty) {
+      String thumbnailUrl = url;
+      if (!url.contains('?')) {
+        thumbnailUrl = '$url?size=small&quality=medium';
+      } else {
+        thumbnailUrl = '$url&size=small&quality=medium';
+      }
+      return Image.network(
+        thumbnailUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          color: Colors.grey[800],
+          child: const Icon(Icons.image, color: Colors.grey),
+        ),
+      );
+    } else if (preview is String && preview.startsWith('data:')) {
+      final idx = preview.indexOf('base64,');
+      if (idx != -1) {
+        final b64 = preview.substring(idx + 7);
+        try {
+          final bytes = base64Decode(b64);
+          return Image.memory(bytes, fit: BoxFit.cover);
+        } catch (_) {}
+      }
+    }
+    return Container(
+      color: Colors.grey[800],
+      child: const Icon(Icons.image, color: Colors.grey),
     );
   }
 }
@@ -5855,11 +6145,15 @@ class _FullScreenPhotoViewerState extends State<FullScreenPhotoViewer> {
 class FullScreenPhotoGallery extends StatefulWidget {
   final List<Map<String, dynamic>> photos;
   final int initialIndex;
+  final Function(String)? onGoToMessage;
+  final List<String>? messageIds;
 
   const FullScreenPhotoGallery({
     super.key,
     required this.photos,
     this.initialIndex = 0,
+    this.onGoToMessage,
+    this.messageIds,
   });
 
   @override
@@ -5871,6 +6165,8 @@ class _FullScreenPhotoGalleryState extends State<FullScreenPhotoGallery> {
   late ScrollController _thumbnailsScrollController;
   late int _currentIndex;
   bool _showControls = true;
+  bool _showLeftArrow = false;
+  bool _showRightArrow = false;
 
   @override
   void initState() {
@@ -5878,17 +6174,58 @@ class _FullScreenPhotoGalleryState extends State<FullScreenPhotoGallery> {
     _currentIndex = widget.initialIndex.clamp(0, widget.photos.length - 1);
     _pageController = PageController(initialPage: _currentIndex);
     _thumbnailsScrollController = ScrollController();
+    _thumbnailsScrollController.addListener(_updateArrowsVisibility);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollThumbnailsToCurrent();
+      _updateArrowsVisibility();
     });
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    _thumbnailsScrollController.removeListener(_updateArrowsVisibility);
     _thumbnailsScrollController.dispose();
     super.dispose();
+  }
+
+  void _updateArrowsVisibility() {
+    if (!_thumbnailsScrollController.hasClients) {
+      setState(() {
+        _showLeftArrow = false;
+        _showRightArrow = false;
+      });
+      return;
+    }
+
+    final position = _thumbnailsScrollController.position;
+    setState(() {
+      _showLeftArrow = position.pixels > 0;
+      _showRightArrow = position.pixels < position.maxScrollExtent;
+    });
+  }
+
+  void _scrollLeft() {
+    if (!_thumbnailsScrollController.hasClients) return;
+    const itemSpacing = 60.0 + 12.0;
+    final target = _thumbnailsScrollController.offset - (itemSpacing * 3);
+    _thumbnailsScrollController.animateTo(
+      target.clamp(0.0, _thumbnailsScrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void _scrollRight() {
+    if (!_thumbnailsScrollController.hasClients) return;
+    const itemSpacing = 60.0 + 12.0;
+    final target = _thumbnailsScrollController.offset + (itemSpacing * 3);
+    _thumbnailsScrollController.animateTo(
+      target.clamp(0.0, _thumbnailsScrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
   }
 
   void _scrollThumbnailsToCurrent() {
@@ -5896,17 +6233,15 @@ class _FullScreenPhotoGalleryState extends State<FullScreenPhotoGallery> {
       const normalWidth = 60.0;
       const currentWidth = 80.0;
       const margin = 6.0;
-      const itemSpacing = normalWidth + (margin * 2);
 
       final screenWidth = MediaQuery.of(context).size.width;
 
       double startPosition = 0.0;
       for (int i = 0; i < _currentIndex; i++) {
-        startPosition += itemSpacing;
+        startPosition += normalWidth + (margin * 2);
       }
 
       final currentCenter = startPosition + (currentWidth / 2);
-
       final targetOffset = currentCenter - (screenWidth / 2);
 
       _thumbnailsScrollController.animateTo(
@@ -6077,6 +6412,7 @@ class _FullScreenPhotoGalleryState extends State<FullScreenPhotoGallery> {
               });
 
               _scrollThumbnailsToCurrent();
+              _updateArrowsVisibility();
             },
             itemCount: widget.photos.length,
             itemBuilder: (context, index) {
@@ -6132,22 +6468,57 @@ class _FullScreenPhotoGalleryState extends State<FullScreenPhotoGallery> {
                       ),
 
                     if (widget.photos.length > 1) const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueAccent,
-                        foregroundColor: Colors.white,
-                        shape: const StadiumBorder(),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
+                    PopupMenuButton<String>(
+                      icon: const Icon(
+                        Icons.more_vert,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      color: Colors.grey[900],
+                      onSelected: (value) {
+                        if (value == 'save') {
+                          _downloadPhoto();
+                        } else if (value == 'goto' &&
+                            widget.onGoToMessage != null &&
+                            widget.messageIds != null &&
+                            _currentIndex < widget.messageIds!.length) {
+                          Navigator.of(context).pop();
+                          widget.onGoToMessage!(
+                            widget.messageIds![_currentIndex],
+                          );
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'save',
+                          child: Row(
+                            children: [
+                              Icon(Icons.save, color: Colors.white),
+                              SizedBox(width: 8),
+                              Text(
+                                'Сохранить фото',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      icon: const Icon(Icons.download, size: 20),
-                      label: const Text(
-                        'Скачать',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      onPressed: _downloadPhoto,
+                        if (widget.onGoToMessage != null &&
+                            widget.messageIds != null &&
+                            _currentIndex < widget.messageIds!.length)
+                          const PopupMenuItem(
+                            value: 'goto',
+                            child: Row(
+                              children: [
+                                Icon(Icons.message, color: Colors.white),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Перейти к сообщению',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
                   ],
                 ),
@@ -6183,43 +6554,97 @@ class _FullScreenPhotoGalleryState extends State<FullScreenPhotoGallery> {
   }
 
   Widget _buildThumbnailsList() {
-    return ListView.builder(
-      controller: _thumbnailsScrollController,
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      itemCount: widget.photos.length,
-      itemBuilder: (context, index) {
-        final isCurrent = index == _currentIndex;
-        final attach = widget.photos[index];
-        final url = attach['url'] ?? attach['baseUrl'];
-        final preview = attach['previewData'];
+    return Stack(
+      children: [
+        ListView.builder(
+          controller: _thumbnailsScrollController,
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 8),
+          itemCount: widget.photos.length,
+          itemBuilder: (context, index) {
+            final isCurrent = index == _currentIndex;
+            final attach = widget.photos[index];
+            final url = attach['url'] ?? attach['baseUrl'];
+            final preview = attach['previewData'];
 
-        return GestureDetector(
-          onTap: () {
-            _pageController.animateToPage(
-              index,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
+            return GestureDetector(
+              onTap: () {
+                _pageController.animateToPage(
+                  index,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                );
+              },
+              child: Container(
+                width: isCurrent ? 80 : 60,
+                height: 80,
+                margin: const EdgeInsets.symmetric(horizontal: 6),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isCurrent
+                        ? Colors.white
+                        : Colors.white.withOpacity(0.3),
+                    width: isCurrent ? 3 : 1,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(7),
+                  child: _buildThumbnailImage(url, preview),
+                ),
+              ),
             );
           },
-          child: Container(
-            width: isCurrent ? 80 : 60,
-            height: 80,
-            margin: const EdgeInsets.symmetric(horizontal: 6),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isCurrent ? Colors.white : Colors.white.withOpacity(0.3),
-                width: isCurrent ? 3 : 1,
+        ),
+        if (_showLeftArrow)
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Container(
+              width: 40,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [Colors.black.withOpacity(0.7), Colors.transparent],
+                ),
+              ),
+              child: IconButton(
+                icon: const Icon(
+                  Icons.chevron_left,
+                  color: Colors.white,
+                  size: 28,
+                ),
+                onPressed: _scrollLeft,
               ),
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(7),
-              child: _buildThumbnailImage(url, preview),
+          ),
+        if (_showRightArrow)
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            child: Container(
+              width: 40,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerRight,
+                  end: Alignment.centerLeft,
+                  colors: [Colors.black.withOpacity(0.7), Colors.transparent],
+                ),
+              ),
+              child: IconButton(
+                icon: const Icon(
+                  Icons.chevron_right,
+                  color: Colors.white,
+                  size: 28,
+                ),
+                onPressed: _scrollRight,
+              ),
             ),
           ),
-        );
-      },
+      ],
     );
   }
 

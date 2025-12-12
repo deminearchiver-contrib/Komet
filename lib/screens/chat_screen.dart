@@ -3482,6 +3482,8 @@ class _ChatScreenState extends State<ChatScreen> {
                                       avatarVerticalOffset: -8.0,
                                       onComplain: () =>
                                           _showComplaintDialog(item.message.id),
+                                      allPhotos: _getAllPhotos(),
+                                      onGoToMessage: _scrollToMessage,
                                     );
 
                                     Widget finalMessageWidget =
@@ -5437,9 +5439,22 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  List<Map<String, dynamic>> _getAllPhotos() {
+    final List<Map<String, dynamic>> allPhotos = [];
+    for (final msg in _messages) {
+      for (final attach in msg.attaches) {
+        if (attach['_type'] == 'PHOTO') {
+          final photo = Map<String, dynamic>.from(attach);
+          photo['_messageId'] = msg.id;
+          allPhotos.add(photo);
+        }
+      }
+    }
+    return allPhotos.reversed.toList();
+  }
+
   void _scrollToMessage(String messageId) {
-    if (!mounted)
-      return; //по сути этот параметр надо сунуть в корень хули он в калбеке забыл но ок -жижа
+    if (!mounted) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;

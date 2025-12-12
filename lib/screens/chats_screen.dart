@@ -1180,10 +1180,7 @@ class _ChatsScreenState extends State<ChatsScreen>
                   backgroundColor: Theme.of(
                     context,
                   ).colorScheme.primaryContainer,
-                  child: Icon(
-                    Icons.download,
-                    color: context.watch<ThemeProvider>().accentColor,
-                  ),
+                  child: Icon(Icons.download, color: Colors.white),
                 ),
                 title: const Text('Загрузки'),
                 subtitle: const Text('Скачанные файлы'),
@@ -3893,7 +3890,7 @@ class _ChatsScreenState extends State<ChatsScreen>
               IconButton(
                 icon: Icon(
                   Icons.download, //ахуеть линтер ошибок не дал ! ! !
-                  color: context.watch<ThemeProvider>().accentColor,
+                  color: Colors.white,
                 ),
                 onPressed: () {
                   Navigator.of(context).push(
