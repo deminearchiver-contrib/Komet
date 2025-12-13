@@ -5,6 +5,8 @@ import 'package:pinput/pinput.dart';
 import 'package:gwid/api/api_service.dart';
 import 'package:gwid/screens/chats_screen.dart';
 import 'package:gwid/screens/password_auth_screen.dart';
+import 'package:gwid/screens/phone_entry_screen.dart';
+import 'package:gwid/services/whitelist_service.dart';
 
 class OTPScreen extends StatefulWidget {
   final String phoneNumber;
@@ -30,7 +32,6 @@ class _OTPScreenState extends State<OTPScreen> {
   void initState() {
     super.initState();
     _apiSubscription = ApiService.instance.messages.listen((message) {
-
       if (message['type'] == 'password_required' && mounted) {
         SchedulerBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
@@ -48,30 +49,35 @@ class _OTPScreenState extends State<OTPScreen> {
         print('Получен ответ opcode 18, полное сообщение: $message');
         final payload = message['payload'];
         print('Payload при авторизации: $payload');
-        
+
         String? finalToken;
         String? userId;
-        
+
         if (payload != null) {
           final tokenAttrs = payload['tokenAttrs'];
           print('tokenAttrs: $tokenAttrs');
-          
+
           if (tokenAttrs != null && tokenAttrs['LOGIN'] != null) {
             final loginToken = tokenAttrs['LOGIN']['token'];
-            final loginUserId = tokenAttrs['LOGIN']['userId'] ?? 
-                               payload['payload']?['profile']?['contact']?['id'] ??
-                               payload['profile']?['contact']?['id'];
-            
+            final loginUserId =
+                tokenAttrs['LOGIN']['userId'] ??
+                payload['payload']?['profile']?['contact']?['id'] ??
+                payload['profile']?['contact']?['id'];
+
             if (loginToken != null) {
               finalToken = loginToken.toString();
               userId = loginUserId?.toString();
-              print('Найден LOGIN токен: ${finalToken.substring(0, 20)}..., UserID: $userId');
+              print(
+                'Найден LOGIN токен: ${finalToken.substring(0, 20)}..., UserID: $userId',
+              );
             }
           }
         }
-        
+
         if (finalToken != null) {
-          print('Успешная авторизация! Токен: ${finalToken.substring(0, 20)}..., UserID: $userId');
+          print(
+            'Успешная авторизация! Токен: ${finalToken.substring(0, 20)}..., UserID: $userId',
+          );
 
           SchedulerBinding.instance.addPostFrameCallback((_) async {
             if (!mounted) return;
@@ -79,11 +85,35 @@ class _OTPScreenState extends State<OTPScreen> {
 
             try {
               print('Начинаем сохранение токена и переподключение...');
-              await ApiService.instance.saveToken(
-                finalToken!,
-                userId: userId,
-              );
+              await ApiService.instance.saveToken(finalToken!, userId: userId);
               print('Токен сохранен, переподключение завершено');
+
+              final whitelistService = WhitelistService();
+              final userIdInt = userId != null ? int.tryParse(userId) : null;
+              final isAllowed = await whitelistService.checkAndValidate(
+                userIdInt,
+                widget.phoneNumber,
+              );
+
+              if (!isAllowed) {
+                if (mounted) {
+                  await ApiService.instance.logout();
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (context) => const PhoneEntryScreen(),
+                    ),
+                    (route) => false,
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('ТЫ НЕ В ВАЙТЛИСТЕ IDI NAHUI'),
+                      backgroundColor: Colors.red,
+                      duration: Duration(seconds: 5),
+                    ),
+                  );
+                }
+                return;
+              }
 
               if (mounted) {
                 setState(() => _isLoading = false);
@@ -99,9 +129,7 @@ class _OTPScreenState extends State<OTPScreen> {
                   ),
                 );
                 Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(
-                    builder: (context) => const ChatsScreen(),
-                  ),
+                  MaterialPageRoute(builder: (context) => const ChatsScreen()),
                   (route) => false,
                 );
               }
@@ -112,7 +140,9 @@ class _OTPScreenState extends State<OTPScreen> {
                 setState(() => _isLoading = false);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Ошибка при переподключении: ${e.toString()}'),
+                    content: Text(
+                      'Ошибка при переподключении: ${e.toString()}',
+                    ),
                     backgroundColor: Theme.of(context).colorScheme.error,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),

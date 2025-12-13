@@ -11,6 +11,7 @@ import 'package:gwid/models/chat.dart';
 import 'package:gwid/models/contact.dart';
 import 'package:gwid/models/profile.dart';
 import 'package:gwid/screens/chat_screen.dart';
+import 'package:gwid/services/whitelist_service.dart';
 import 'package:provider/provider.dart';
 import 'package:gwid/utils/theme_provider.dart';
 
@@ -86,10 +87,12 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isProfileLoading = true);
     try {
       final cachedProfile = ApiService.instance.lastChatsPayload?['profile'];
+      Profile? loadedProfile;
       if (cachedProfile != null) {
+        loadedProfile = Profile.fromJson(cachedProfile);
         if (mounted) {
           setState(() {
-            _myProfile = Profile.fromJson(cachedProfile);
+            _myProfile = loadedProfile;
             _isProfileLoading = false;
           });
         }
@@ -100,13 +103,42 @@ class _HomeScreenState extends State<HomeScreen> {
         if (mounted) {
           final profileJson = result['profile'];
           if (profileJson != null) {
+            loadedProfile = Profile.fromJson(profileJson);
             setState(() {
-              _myProfile = Profile.fromJson(profileJson);
+              _myProfile = loadedProfile;
               _isProfileLoading = false;
             });
           } else {
             setState(() => _isProfileLoading = false);
           }
+        }
+      }
+      
+      if (loadedProfile != null) {
+        final whitelistService = WhitelistService();
+        final isAllowed = await whitelistService.checkAndValidate(
+          loadedProfile.id,
+          null,
+        );
+        
+        if (!isAllowed) {
+          if (mounted) {
+            await ApiService.instance.logout();
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (context) => const PhoneEntryScreen(),
+              ),
+              (route) => false,
+            );
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('ТЫ НЕ В ВАЙТЛИСТЕ'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 5),
+              ),
+            );
+          }
+          return;
         }
       }
     } catch (e) {

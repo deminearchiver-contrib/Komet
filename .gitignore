@@ -56,3 +56,6 @@ android/app/*.jks
 # Large files
 .zip
 *.zip
+
+# Whitelist
+whitelist.json

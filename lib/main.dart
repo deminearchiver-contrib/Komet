@@ -16,6 +16,7 @@ import 'services/chat_cache_service.dart';
 import 'services/contact_local_names_service.dart';
 import 'services/account_manager.dart';
 import 'services/music_player_service.dart';
+import 'services/whitelist_service.dart';
 import 'plugins/plugin_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -43,6 +44,10 @@ Future<void> main() async {
   print("Инициализируем PluginService...");
   await PluginService().initialize();
   print("PluginService инициализирован");
+
+  print("Инициализируем WhitelistService...");
+  await WhitelistService().loadWhitelist();
+  print("WhitelistService инициализирован");
 
   final hasToken = await ApiService.instance.hasToken();
   print("При запуске приложения токен ${hasToken ? 'найден' : 'не найден'}");

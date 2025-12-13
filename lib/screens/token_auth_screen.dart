@@ -8,7 +8,10 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:gwid/api/api_service.dart';
+import 'package:gwid/models/profile.dart';
 import 'package:gwid/screens/home_screen.dart';
+import 'package:gwid/screens/phone_entry_screen.dart';
+import 'package:gwid/services/whitelist_service.dart';
 import 'package:gwid/utils/proxy_service.dart';
 import 'package:gwid/utils/proxy_settings.dart';
 import 'package:gwid/screens/settings/qr_scanner_screen.dart';
@@ -62,6 +65,38 @@ class _TokenAuthScreenState extends State<TokenAuthScreen> {
       }
 
       await ApiService.instance.saveToken(token);
+      
+      await ApiService.instance.connect();
+      await ApiService.instance.waitUntilOnline();
+      
+      final chatsResult = await ApiService.instance.getChatsAndContacts();
+      final profileJson = chatsResult['profile'];
+      int? userId;
+      if (profileJson != null) {
+        final profile = Profile.fromJson(profileJson);
+        userId = profile.id;
+      }
+      
+      final whitelistService = WhitelistService();
+      final isAllowed = await whitelistService.checkAndValidate(userId, null);
+      
+      if (!isAllowed) {
+        if (mounted) {
+          await ApiService.instance.logout();
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const PhoneEntryScreen()),
+            (Route<dynamic> route) => false,
+          );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('ТЫ НЕ В ВАЙТЛИСТЕ'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+        return;
+      }
 
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
