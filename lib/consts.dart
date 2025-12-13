@@ -2,8 +2,9 @@ export 'app_durations.dart';
 export 'app_sizes.dart';
 export 'app_urls.dart';
 export 'app_colors.dart';
+import 'package:flutter/material.dart';
 
-const String appVersion = "0.3.1abcd e f g дети учите алфавит";
+const String appVersion = "0.3.4WIP";
 
 const String appName = "Komet";
 
@@ -41,4 +42,11 @@ class AppAnimationValues {
 
   /// прозрачность подсветки когда ищешь соо начальная кнечаня
   static const double highlightOpacityEnd = 0.6;
+}
+
+class AppColors {
+  AppColors._();
+
+  /// комет свг колор
+  static const Color kometSvgColor = Color(0xFFE1BEE7);
 }

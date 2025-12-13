@@ -32,7 +32,6 @@ extension ApiServiceConnection on ApiService {
         return;
       } catch (e) {
         final errorMessage = '❌ Ошибка: ${e.toString().split(':').first}';
-        print('Ошибка подключения к $currentUrl: $e');
         _connectionLogController.add(errorMessage);
         _healthMonitor.onError(errorMessage);
         _currentUrlIndex++;
@@ -69,9 +68,6 @@ extension ApiServiceConnection on ApiService {
     _connectionStatusController.add('connecting');
 
     final uri = Uri.parse(url);
-    print(
-      'Parsed URI: host=${uri.host}, port=${uri.port}, scheme=${uri.scheme}',
-    );
 
     final spoofedData = await SpoofingService.getSpoofedSessionData();
     final userAgent =
@@ -87,9 +83,6 @@ extension ApiServiceConnection on ApiService {
     final proxySettings = await ProxyService.instance.loadProxySettings();
 
     if (proxySettings.isEnabled && proxySettings.host.isNotEmpty) {
-      print(
-        'Используем ${proxySettings.protocol.name.toUpperCase()} прокси ${proxySettings.host}:${proxySettings.port}',
-      );
       final customHttpClient = await ProxyService.instance
           .getHttpClientWithProxy();
       _channel = IOWebSocketChannel.connect(
@@ -98,7 +91,6 @@ extension ApiServiceConnection on ApiService {
         customClient: customHttpClient,
       );
     } else {
-      print('Подключение без прокси');
       _channel = IOWebSocketChannel.connect(uri, headers: headers);
     }
 
@@ -109,7 +101,6 @@ extension ApiServiceConnection on ApiService {
   }
 
   void _handleSessionTerminated() {
-    print("Сессия была завершена сервером");
     _isSessionOnline = false;
     _isSessionReady = false;
     _stopHealthMonitoring();
@@ -129,7 +120,6 @@ extension ApiServiceConnection on ApiService {
   }
 
   void _handleInvalidToken() async {
-    print("Обработка недействительного токена");
     _isSessionOnline = false;
     _isSessionReady = false;
     _stopHealthMonitoring();
@@ -157,11 +147,8 @@ extension ApiServiceConnection on ApiService {
 
   Future<void> _sendHandshake() async {
     if (_handshakeSent) {
-      print('Handshake уже отправлен, пропускаем...');
       return;
     }
-
-    print('Отправляем handshake...');
 
     final userAgentPayload = await _buildUserAgentPayload();
 
@@ -175,31 +162,23 @@ extension ApiServiceConnection on ApiService {
 
     final payload = {'deviceId': deviceId, 'userAgent': userAgentPayload};
 
-    print('Отправляем handshake с payload: $payload');
     _sendMessage(6, payload);
     _handshakeSent = true;
-    print('Handshake отправлен, ожидаем ответ...');
   }
 
   void _startPinging() {
     _pingTimer?.cancel();
     _pingTimer = Timer.periodic(const Duration(seconds: 25), (timer) {
       if (_isSessionOnline && _isSessionReady && _isAppInForeground) {
-        print("Отправляем Ping для поддержания сессии...");
         _sendMessage(1, {"interactive": true});
-      } else {
-        print("Сессия не готова, пропускаем ping");
       }
     });
   }
 
   Future<void> connect() async {
     if (_channel != null && _isSessionOnline) {
-      print("WebSocket уже подключен, пропускаем подключение");
       return;
     }
-
-    print("Запускаем подключение к WebSocket...");
 
     _isSessionOnline = false;
     _isSessionReady = false;
@@ -257,8 +236,8 @@ extension ApiServiceConnection on ApiService {
 
     final encodedMessage = jsonEncode(message);
 
-    _log('➡️ SEND: opcode=${message['opcode']}, payload=${message['payload']}');
-    print('Отправляем кастомное сообщение (seq: $currentSeq): $encodedMessage');
+    final opcode = message['opcode'];
+    print('→ opcode=$opcode seq=$currentSeq');
 
     _channel!.sink.add(encodedMessage);
 
@@ -267,7 +246,6 @@ extension ApiServiceConnection on ApiService {
 
   int _sendMessage(int opcode, Map<String, dynamic> payload) {
     if (_channel == null) {
-      print('WebSocket не подключен!');
       return -1;
     }
     final message = {
@@ -278,12 +256,7 @@ extension ApiServiceConnection on ApiService {
       "payload": payload,
     };
     final encodedMessage = jsonEncode(message);
-    if (opcode == 1) {
-      _log('➡️ SEND (ping) seq: $_seq');
-    } else {
-      _log('➡️ SEND: opcode=$opcode, payload=$payload');
-    }
-    print('Отправляем сообщение (seq: $_seq): $encodedMessage');
+    print('→ opcode=$opcode seq=${_seq}');
     _channel!.sink.add(encodedMessage);
     return _seq++;
   }
@@ -308,16 +281,12 @@ extension ApiServiceConnection on ApiService {
         try {
           final decoded = jsonDecode(message) as Map<String, dynamic>;
           final opcode = decoded['opcode'];
+          final seq = decoded['seq'];
           if (opcode == 2) {
             _healthMonitor.onPongReceived();
-            _log('⬅️ RECV (pong) seq: ${decoded['seq']}');
-          } else {
-            final payload = decoded['payload'];
-            _log('⬅️ RECV: opcode=$opcode, payload=$payload');
           }
-        } catch (_) {
-          _log('⬅️ RECV (raw): $message');
-        }
+          print('← opcode=$opcode seq=$seq');
+        } catch (_) {}
 
         try {
           final decodedMessage = message is String
@@ -336,7 +305,6 @@ extension ApiServiceConnection on ApiService {
           if (decodedMessage is Map &&
               decodedMessage['opcode'] == 6 &&
               decodedMessage['cmd'] == 1) {
-            print("Handshake успешен. Сессия ONLINE.");
             _isSessionOnline = true;
             _isSessionReady = false;
             _reconnectDelaySeconds = 2;
@@ -351,14 +319,8 @@ extension ApiServiceConnection on ApiService {
             _processMessageQueue();
 
             if (authToken != null && !_chatsFetchedInThisSession) {
-              print(
-                "Токен найден, автоматически запускаем авторизацию (opcode 19)...",
-              );
               unawaited(_sendAuthRequestAfterHandshake());
             } else if (authToken == null) {
-              print(
-                "Токен не найден, завершаем ожидание для неавторизованной сессии",
-              );
               _isSessionReady = true;
               if (_onlineCompleter != null && !_onlineCompleter!.isCompleted) {
                 _onlineCompleter!.complete();
@@ -368,8 +330,9 @@ extension ApiServiceConnection on ApiService {
 
           if (decodedMessage is Map && decodedMessage['cmd'] == 3) {
             final error = decodedMessage['payload'];
-            print('Ошибка сервера: $error');
-            _healthMonitor.onError(error?['message'] ?? 'server_error');
+            final errorMsg = error?['message'] ?? error?['error'] ?? 'server_error';
+            print('← ERROR: $errorMsg');
+            _healthMonitor.onError(errorMsg);
             _updateConnectionState(
               conn_state.ConnectionState.error,
               message: error?['message'],
@@ -390,20 +353,17 @@ extension ApiServiceConnection on ApiService {
             }
 
             if (error != null && error['error'] == 'proto.state') {
-              print('Ошибка состояния сессии, переподключаемся...');
               _chatsFetchedInThisSession = false;
               _reconnect();
               return;
             }
 
             if (error != null && error['error'] == 'login.token') {
-              print('Токен недействителен, очищаем и завершаем сессию...');
               _handleInvalidToken();
               return;
             }
 
             if (error != null && error['message'] == 'FAIL_WRONG_PASSWORD') {
-              print('Неверный токен авторизации, очищаем токен...');
               _clearAuthToken().then((_) {
                 _chatsFetchedInThisSession = false;
                 _messageController.add({
@@ -428,9 +388,6 @@ extension ApiServiceConnection on ApiService {
               _currentPasswordHint = challenge['hint'];
               _currentPasswordEmail = challenge['email'];
 
-              print(
-                'Получен запрос на ввод пароля: trackId=${challenge['trackId']}, hint=${challenge['hint']}, email=${challenge['email']}',
-              );
 
               _messageController.add({
                 'type': 'password_required',
@@ -446,8 +403,6 @@ extension ApiServiceConnection on ApiService {
               decodedMessage['opcode'] == 22 &&
               decodedMessage['cmd'] == 1) {
             final payload = decodedMessage['payload'];
-            print('Настройки приватности успешно обновлены: $payload');
-
             _messageController.add({
               'type': 'privacy_settings_updated',
               'settings': payload,
@@ -458,8 +413,6 @@ extension ApiServiceConnection on ApiService {
               decodedMessage['opcode'] == 116 &&
               decodedMessage['cmd'] == 1) {
             final payload = decodedMessage['payload'];
-            print('Пароль успешно установлен: $payload');
-
             _messageController.add({
               'type': 'password_set_success',
               'payload': payload,
@@ -470,8 +423,6 @@ extension ApiServiceConnection on ApiService {
               decodedMessage['opcode'] == 57 &&
               decodedMessage['cmd'] == 1) {
             final payload = decodedMessage['payload'];
-            print('Успешно присоединились к группе: $payload');
-
             _messageController.add({
               'type': 'group_join_success',
               'payload': payload,
@@ -482,8 +433,6 @@ extension ApiServiceConnection on ApiService {
               decodedMessage['opcode'] == 46 &&
               decodedMessage['cmd'] == 1) {
             final payload = decodedMessage['payload'];
-            print('Контакт найден: $payload');
-
             _messageController.add({
               'type': 'contact_found',
               'payload': payload,
@@ -494,8 +443,6 @@ extension ApiServiceConnection on ApiService {
               decodedMessage['opcode'] == 46 &&
               decodedMessage['cmd'] == 3) {
             final payload = decodedMessage['payload'];
-            print('Контакт не найден: $payload');
-
             _messageController.add({
               'type': 'contact_not_found',
               'payload': payload,
@@ -506,8 +453,6 @@ extension ApiServiceConnection on ApiService {
               decodedMessage['opcode'] == 32 &&
               decodedMessage['cmd'] == 1) {
             final payload = decodedMessage['payload'];
-            print('Каналы найдены: $payload');
-
             _messageController.add({
               'type': 'channels_found',
               'payload': payload,
@@ -518,8 +463,6 @@ extension ApiServiceConnection on ApiService {
               decodedMessage['opcode'] == 32 &&
               decodedMessage['cmd'] == 3) {
             final payload = decodedMessage['payload'];
-            print('Каналы не найдены: $payload');
-
             _messageController.add({
               'type': 'channels_not_found',
               'payload': payload,
@@ -535,20 +478,17 @@ extension ApiServiceConnection on ApiService {
             if (chat != null) {
               final chatType = chat['type'] as String?;
               if (chatType == 'CHAT') {
-                print('Успешно присоединились к группе (opcode 89): $payload');
                 _messageController.add({
                   'type': 'group_join_success',
                   'payload': payload,
                 });
               } else {
-                print('Вход в канал успешен: $payload');
                 _messageController.add({
                   'type': 'channel_entered',
                   'payload': payload,
                 });
               }
             } else {
-              print('Вход в канал успешен: $payload');
               _messageController.add({
                 'type': 'channel_entered',
                 'payload': payload,
@@ -560,8 +500,6 @@ extension ApiServiceConnection on ApiService {
               decodedMessage['opcode'] == 89 &&
               decodedMessage['cmd'] == 3) {
             final payload = decodedMessage['payload'];
-            print('Ошибка входа в канал: $payload');
-
             _messageController.add({
               'type': 'channel_error',
               'payload': payload,
@@ -572,8 +510,6 @@ extension ApiServiceConnection on ApiService {
               decodedMessage['opcode'] == 57 &&
               decodedMessage['cmd'] == 1) {
             final payload = decodedMessage['payload'];
-            print('Подписка на канал успешна: $payload');
-
             _messageController.add({
               'type': 'channel_subscribed',
               'payload': payload,
@@ -584,8 +520,6 @@ extension ApiServiceConnection on ApiService {
               decodedMessage['opcode'] == 57 &&
               decodedMessage['cmd'] == 3) {
             final payload = decodedMessage['payload'];
-            print('Ошибка подписки на канал: $payload');
-
             _messageController.add({
               'type': 'channel_error',
               'payload': payload,
@@ -596,8 +530,6 @@ extension ApiServiceConnection on ApiService {
               decodedMessage['opcode'] == 59 &&
               decodedMessage['cmd'] == 1) {
             final payload = decodedMessage['payload'];
-            print('Получены участники группы: $payload');
-
             _messageController.add({
               'type': 'group_members',
               'payload': payload,
@@ -608,8 +540,6 @@ extension ApiServiceConnection on ApiService {
               decodedMessage['opcode'] == 162 &&
               decodedMessage['cmd'] == 1) {
             final payload = decodedMessage['payload'];
-            print('Получены данные жалоб: $payload');
-
             try {
               final complaintData = ComplaintData.fromJson(payload);
               _messageController.add({
@@ -617,7 +547,7 @@ extension ApiServiceConnection on ApiService {
                 'complaintData': complaintData,
               });
             } catch (e) {
-              print('Ошибка парсинга данных жалоб: $e');
+              print('← ERROR parsing complaints: $e');
             }
           }
 
@@ -625,11 +555,11 @@ extension ApiServiceConnection on ApiService {
             _messageController.add(decodedMessage);
           }
         } catch (e) {
-          print('Невалидное сообщение от сервера, пропускаем: $e');
+          print('← ERROR invalid message: $e');
         }
       },
       onError: (error) {
-        print('Ошибка WebSocket: $error');
+        print('← ERROR WebSocket: $error');
         _isSessionOnline = false;
         _isSessionReady = false;
         _healthMonitor.onError(error.toString());
@@ -640,7 +570,7 @@ extension ApiServiceConnection on ApiService {
         _reconnect();
       },
       onDone: () {
-        print('WebSocket соединение закрыто. Попытка переподключения...');
+        print('← WebSocket closed');
         _isSessionOnline = false;
         _isSessionReady = false;
         _stopHealthMonitoring();
@@ -665,9 +595,7 @@ extension ApiServiceConnection on ApiService {
     _healthMonitor.onReconnect();
 
     if (_reconnectAttempts > ApiService._maxReconnectAttempts) {
-      print(
-        "Превышено максимальное количество попыток переподключения (${ApiService._maxReconnectAttempts}). Останавливаем попытки.",
-      );
+      print("← ERROR max reconnect attempts");
       _connectionStatusController.add("disconnected");
       _isReconnecting = false;
       _updateConnectionState(
@@ -682,12 +610,9 @@ extension ApiServiceConnection on ApiService {
     _streamSubscription?.cancel();
 
     if (_channel != null) {
-      print("Закрываем старое WebSocket соединение перед переподключением...");
       try {
         _channel!.sink.close(status.goingAway);
-      } catch (e) {
-        print("Ошибка при закрытии старого соединения: $e");
-      }
+      } catch (e) {}
       _channel = null;
     }
 
@@ -704,9 +629,6 @@ extension ApiServiceConnection on ApiService {
     final delay = Duration(seconds: _reconnectDelaySeconds + jitter.round());
 
     _reconnectTimer = Timer(delay, () {
-      print(
-        "Переподключаемся после ${delay.inSeconds}s... (попытка $_reconnectAttempts/${ApiService._maxReconnectAttempts})",
-      );
       _isReconnecting = false;
       _updateConnectionState(
         conn_state.ConnectionState.reconnecting,
@@ -719,7 +641,6 @@ extension ApiServiceConnection on ApiService {
 
   void _processMessageQueue() {
     if (_messageQueue.isEmpty) return;
-    print("Отправка ${_messageQueue.length} сообщений из очереди...");
     for (var message in _messageQueue) {
       _sendMessage(message['opcode'], message['payload']);
     }
@@ -727,12 +648,9 @@ extension ApiServiceConnection on ApiService {
   }
 
   void forceReconnect() {
-    print("Принудительное переподключение...");
-
     _pingTimer?.cancel();
     _reconnectTimer?.cancel();
     if (_channel != null) {
-      print("Закрываем существующее соединение...");
       _channel!.sink.close(status.goingAway);
       _channel = null;
     }
@@ -756,7 +674,6 @@ extension ApiServiceConnection on ApiService {
   }
 
   Future<void> performFullReconnection() async {
-    print("🔄 Начинаем полное переподключение...");
     try {
       _pingTimer?.cancel();
       _reconnectTimer?.cancel();
@@ -765,12 +682,9 @@ extension ApiServiceConnection on ApiService {
       _streamSubscription = null;
 
       if (_channel != null) {
-        print("🔄 Закрываем старое WebSocket соединение...");
         try {
           _channel!.sink.close(status.goingAway);
-        } catch (e) {
-          print("Ошибка при закрытии старого соединения: $e");
-        }
+        } catch (e) {}
         _channel = null;
       }
 
@@ -788,30 +702,22 @@ extension ApiServiceConnection on ApiService {
       _lastChatsPayload = null;
       _lastChatsAt = null;
 
-      print(
-        "🔄 Кэш чатов очищен: _lastChatsPayload = $_lastChatsPayload, _chatsFetchedInThisSession = $_chatsFetchedInThisSession",
-      );
-
       _connectionStatusController.add("disconnected");
 
       await connect();
 
-      print("✅ Полное переподключение завершено");
-
       await Future.delayed(const Duration(milliseconds: 1500));
 
       if (!_reconnectionCompleteController.isClosed) {
-        print("✅ Отправляем уведомление о завершении переподключения");
         _reconnectionCompleteController.add(null);
       }
     } catch (e) {
-      print("❌ Ошибка полного переподключения: $e");
+      print("← ERROR full reconnect: $e");
       rethrow;
     }
   }
 
   void disconnect() {
-    print("Отключаем WebSocket...");
     _pingTimer?.cancel();
     _reconnectTimer?.cancel();
     _streamSubscription?.cancel();

@@ -48,7 +48,6 @@ Uint8List packPacket({
 
 Map<String, dynamic>? unpackPacket(Uint8List data) {
   if (data.length < 10) {
-    print("Ошибка распаковки: Пакет слишком короткий для заголовка.");
     return null;
   }
 
@@ -67,9 +66,6 @@ Map<String, dynamic>? unpackPacket(Uint8List data) {
   final payloadLength = packedLen & 0x00FFFFFF;
 
   if (data.length < 10 + payloadLength) {
-    print(
-      "Ошибка распаковки: Фактическая длина пакета (${data.length}) меньше заявленной (${10 + payloadLength}).",
-    );
     return null;
   }
 
@@ -81,7 +77,6 @@ Map<String, dynamic>? unpackPacket(Uint8List data) {
 
       payloadBytes = Uint8List.fromList(lz4Codec.decode(compressedData));
     } catch (e) {
-      print("Ошибка распаковки LZ4: $e");
       return null;
     }
   }

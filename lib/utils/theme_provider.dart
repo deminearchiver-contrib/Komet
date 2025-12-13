@@ -4,7 +4,7 @@ import 'dart:convert';
 
 enum AppTheme { system, light, dark, black }
 
-enum ChatWallpaperType { solid, gradient, image, video }
+enum ChatWallpaperType { komet, solid, gradient, image, video }
 
 enum FolderTabsBackgroundType { none, gradient, image }
 
@@ -43,6 +43,8 @@ extension TransitionOptionExtension on TransitionOption {
 extension ChatWallpaperTypeExtension on ChatWallpaperType {
   String get displayName {
     switch (this) {
+      case ChatWallpaperType.komet:
+        return 'Komet';
       case ChatWallpaperType.solid:
         return 'Цвет';
       case ChatWallpaperType.gradient:
@@ -194,8 +196,8 @@ class CustomThemePreset {
     required this.name,
     this.appTheme = AppTheme.dark,
     this.accentColor = Colors.blue,
-    this.useCustomChatWallpaper = false,
-    this.chatWallpaperType = ChatWallpaperType.solid,
+    this.useCustomChatWallpaper = true,
+    this.chatWallpaperType = ChatWallpaperType.komet,
     this.chatWallpaperColor1 = const Color(0xFF101010),
     this.chatWallpaperColor2 = const Color(0xFF202020),
     this.chatWallpaperImagePath,
@@ -510,7 +512,7 @@ class CustomThemePreset {
       name: json['name'] as String,
       appTheme: AppTheme.values[json['appTheme'] as int? ?? 0],
       accentColor: Color(json['accentColor'] as int? ?? Colors.blue.value),
-      useCustomChatWallpaper: json['useCustomChatWallpaper'] as bool? ?? false,
+      useCustomChatWallpaper: json['useCustomChatWallpaper'] as bool? ?? true,
       chatWallpaperType:
           ChatWallpaperType.values[json['chatWallpaperType'] as int? ?? 0],
       chatWallpaperColor1: Color(
@@ -1213,8 +1215,8 @@ class ThemeProvider with ChangeNotifier {
 
   Future<void> resetChatWallpaperToDefaults() async {
     _activeTheme = _activeTheme.copyWith(
-      useCustomChatWallpaper: false,
-      chatWallpaperType: ChatWallpaperType.solid,
+      useCustomChatWallpaper: true,
+      chatWallpaperType: ChatWallpaperType.komet,
       chatWallpaperColor1: const Color(0xFF101010),
       chatWallpaperColor2: const Color(0xFF202020),
       chatWallpaperImagePath: null,
@@ -1482,7 +1484,7 @@ class ThemeProvider with ChangeNotifier {
         
         useGlassPanels: false,
         
-        useCustomChatWallpaper: false,
+        useCustomChatWallpaper: true,
         chatsListBackgroundType: ChatsListBackgroundType.none,
         drawerBackgroundType: DrawerBackgroundType.none,
         appBarBackgroundType: AppBarBackgroundType.none,

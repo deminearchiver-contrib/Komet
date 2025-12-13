@@ -142,7 +142,6 @@ class ApiService {
 
       return true;
     } catch (e) {
-      print("🔴 Ошибка при проверке состояния канала: $e");
       return false;
     }
   }
@@ -194,18 +193,13 @@ class ApiService {
     final spoofedData = await SpoofingService.getSpoofedSessionData();
 
     if (spoofedData != null) {
-      print(
-        '--- [_buildUserAgentPayload] Используются подменённые данные сессии ---',
-      );
       final String finalDeviceId;
       final String? idFromSpoofing = spoofedData['device_id'] as String?;
 
       if (idFromSpoofing != null && idFromSpoofing.isNotEmpty) {
         finalDeviceId = idFromSpoofing;
-        print('Используется deviceId из сессии: $finalDeviceId');
       } else {
         finalDeviceId = generateRandomDeviceId();
-        print('device_id не найден в кэше, сгенерирован новый: $finalDeviceId');
       }
       return {
         'deviceType': spoofedData['device_type'] as String? ?? 'IOS',
@@ -221,9 +215,6 @@ class ApiService {
         'timezone': spoofedData['timezone'] as String? ?? 'Europe/Moscow',
       };
     } else {
-      print(
-        '--- [_buildUserAgentPayload] Используются псевдо-случайные данные ---',
-      );
       return {
         'deviceType': 'WEB',
         'locale': 'ru',

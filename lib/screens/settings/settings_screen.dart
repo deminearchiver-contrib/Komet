@@ -459,7 +459,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _SettingsItem(
         type: _SettingsItemType.category,
         icon: Icons.extension,
-        title: "Plugins",
+        title: "Plugins(WIP)",
         subtitle: "Плагины(WIP)",
         screen: const PluginsScreen(),
       ),

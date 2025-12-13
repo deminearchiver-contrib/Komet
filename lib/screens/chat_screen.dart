@@ -34,12 +34,13 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:gwid/services/chat_encryption_service.dart';
 import 'package:lottie/lottie.dart';
 import 'package:gwid/widgets/formatted_text_controller.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:gwid/consts.dart';
 
 bool _debugShowExactDate = false;
 
 void toggleDebugExactDate() {
   _debugShowExactDate = !_debugShowExactDate;
-  print('Debug режим точной даты: $_debugShowExactDate');
 }
 
 abstract class ChatItem {}
@@ -72,13 +73,6 @@ class _EmptyChatWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-
-    print(
-      '🎨 _EmptyChatWidget.build: sticker=${sticker != null ? "есть" : "null"}',
-    );
-    if (sticker != null) {
-      print('🎨 Стикер данные: $sticker');
-    }
 
     return Center(
       child: Column(
@@ -117,12 +111,7 @@ class _EmptyChatWidget extends StatelessWidget {
     final width = (sticker['width'] as num?)?.toDouble() ?? 170.0;
     final height = (sticker['height'] as num?)?.toDouble() ?? 170.0;
 
-    print(
-      '🎨 _buildSticker: url=$url, lottieUrl=$lottieUrl, width=$width, height=$height',
-    );
-
     if (lottieUrl != null && lottieUrl.isNotEmpty) {
-      print('🎨 Пытаемся показать Lottie-анимацию: $lottieUrl');
       return SizedBox(
         width: width,
         height: height,
@@ -130,9 +119,6 @@ class _EmptyChatWidget extends StatelessWidget {
           lottieUrl,
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) {
-            print('❌ Ошибка загрузки Lottie: $error');
-            print('❌ StackTrace Lottie: $stackTrace');
-
             if (url != null && url.isNotEmpty) {
               return Image.network(url, fit: BoxFit.contain);
             }
@@ -144,8 +130,6 @@ class _EmptyChatWidget extends StatelessWidget {
 
     final imageUrl = url;
 
-    print('🎨 Используемый URL для статичного стикера: $imageUrl');
-
     if (imageUrl != null && imageUrl.isNotEmpty) {
       return SizedBox(
         width: width,
@@ -155,12 +139,8 @@ class _EmptyChatWidget extends StatelessWidget {
           fit: BoxFit.contain,
           loadingBuilder: (context, child, loadingProgress) {
             if (loadingProgress == null) {
-              print('✅ Стикер успешно загружен');
               return child;
             }
-            print(
-              '⏳ Загрузка стикера: ${loadingProgress.cumulativeBytesLoaded}/${loadingProgress.expectedTotalBytes}',
-            );
             return Center(
               child: CircularProgressIndicator(
                 value: loadingProgress.expectedTotalBytes != null
@@ -171,15 +151,11 @@ class _EmptyChatWidget extends StatelessWidget {
             );
           },
           errorBuilder: (context, error, stackTrace) {
-            print('❌ Ошибка загрузки стикера: $error');
-            print('❌ StackTrace: $stackTrace');
             return Icon(Icons.emoji_emotions, size: width, color: Colors.grey);
           },
         ),
       );
     }
-
-    print('❌ URL стикера пустой или null');
     return Icon(Icons.emoji_emotions, size: width, color: Colors.grey);
   }
 }
@@ -593,9 +569,6 @@ class _ChatScreenState extends State<ChatScreen> {
         final contact = Contact.fromJson(contactJson);
         _contactDetailsCache[contact.id] = contact;
       }
-      print(
-        'Кэш контактов для экрана чата заполнен: ${_contactDetailsCache.length} контактов.',
-      );
     }
   }
 
@@ -624,7 +597,6 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() {});
       }
     } catch (e) {
-      print('Ошибка загрузки контакта $contactId: $e');
     } finally {
       _loadingContactIds.remove(contactId);
     }
@@ -632,25 +604,15 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _loadGroupParticipants() async {
     try {
-      print(
-        '🔍 [_loadGroupParticipants] Начинаем загрузку участников группы...',
-      );
-
       final chatData = ApiService.instance.lastChatsPayload;
       if (chatData == null) {
-        print('❌ [_loadGroupParticipants] chatData == null');
         return;
       }
 
       final chats = chatData['chats'] as List<dynamic>?;
       if (chats == null) {
-        print('❌ [_loadGroupParticipants] chats == null');
         return;
       }
-
-      print(
-        '🔍 [_loadGroupParticipants] Ищем чат с ID ${widget.chatId} среди ${chats.length} чатов...',
-      );
 
       final currentChat = chats.firstWhere(
         (chat) => chat['id'] == widget.chatId,
@@ -658,23 +620,13 @@ class _ChatScreenState extends State<ChatScreen> {
       );
 
       if (currentChat == null) {
-        print('❌ [_loadGroupParticipants] Чат с ID ${widget.chatId} не найден');
         return;
       }
-
-      print(
-        '✅ [_loadGroupParticipants] Чат найден: ${currentChat['title'] ?? 'Без названия'}',
-      );
 
       final participants = currentChat['participants'] as Map<String, dynamic>?;
       if (participants == null || participants.isEmpty) {
-        print('❌ [_loadGroupParticipants] Список участников пуст');
         return;
       }
-
-      print(
-        '🔍 [_loadGroupParticipants] Найдено ${participants.length} участников в чате',
-      );
 
       final participantIds = participants.keys
           .map((id) => int.tryParse(id))
@@ -683,51 +635,20 @@ class _ChatScreenState extends State<ChatScreen> {
           .toList();
 
       if (participantIds.isEmpty) {
-        print('❌ [_loadGroupParticipants] participantIds пуст после парсинга');
         return;
       }
-
-      print(
-        '🔍 [_loadGroupParticipants] Обрабатываем ${participantIds.length} ID участников...',
-      );
-      print(
-        '🔍 [_loadGroupParticipants] IDs: ${participantIds.take(10).join(', ')}${participantIds.length > 10 ? '...' : ''}',
-      );
 
       final idsToFetch = participantIds
           .where((id) => !_contactDetailsCache.containsKey(id))
           .toList();
 
-      print(
-        '🔍 [_loadGroupParticipants] В кэше уже есть: ${participantIds.length - idsToFetch.length} контактов',
-      );
-      print(
-        '🔍 [_loadGroupParticipants] Нужно загрузить: ${idsToFetch.length} контактов',
-      );
-
       if (idsToFetch.isEmpty) {
-        print('✅ [_loadGroupParticipants] Все участники уже в кэше');
         return;
       }
 
-      print(
-        '📡 [_loadGroupParticipants] Загружаем информацию о ${idsToFetch.length} участниках...',
-      );
-      print(
-        '📡 [_loadGroupParticipants] IDs для загрузки: ${idsToFetch.take(10).join(', ')}${idsToFetch.length > 10 ? '...' : ''}',
-      );
-
       final contacts = await ApiService.instance.fetchContactsByIds(idsToFetch);
 
-      print(
-        '📦 [_loadGroupParticipants] Получено ${contacts.length} контактов от API из ${idsToFetch.length} запрошенных',
-      );
-
       if (contacts.isNotEmpty) {
-        for (final contact in contacts) {
-          print('  📇 Контакт: ${contact.name} (ID: ${contact.id})');
-        }
-
         if (mounted) {
           setState(() {
             for (final contact in contacts) {
@@ -736,43 +657,10 @@ class _ChatScreenState extends State<ChatScreen> {
           });
 
           await ChatCacheService().cacheChatContacts(widget.chatId, contacts);
-
-          print(
-            '✅ [_loadGroupParticipants] Загружено и сохранено ${contacts.length} контактов',
-          );
-          print(
-            '✅ [_loadGroupParticipants] Всего в кэше теперь: ${_contactDetailsCache.length} контактов',
-          );
-
-          if (contacts.length < idsToFetch.length) {
-            final receivedIds = contacts.map((c) => c.id).toSet();
-            final missingIds = idsToFetch
-                .where((id) => !receivedIds.contains(id))
-                .toList();
-            print(
-              '⚠️ [_loadGroupParticipants] Не получены данные для ${missingIds.length} контактов из ${idsToFetch.length} запрошенных',
-            );
-            print(
-              '⚠️ [_loadGroupParticipants] Отсутствующие ID: ${missingIds.take(10).join(', ')}${missingIds.length > 10 ? '...' : ''}',
-            );
-          }
-        } else {
-          print(
-            '⚠️ [_loadGroupParticipants] Widget не mounted, контакты не сохранены',
-          );
         }
-      } else {
-        print('❌ [_loadGroupParticipants] API вернул ПУСТОЙ список контактов!');
-        print(
-          '❌ [_loadGroupParticipants] Было запрошено ${idsToFetch.length} ID',
-        );
-        print(
-          '❌ [_loadGroupParticipants] Запрошенные ID: ${idsToFetch.take(10).join(', ')}${idsToFetch.length > 10 ? '...' : ''}',
-        );
       }
     } catch (e, stackTrace) {
-      print('❌ [_loadGroupParticipants] Ошибка загрузки участников группы: $e');
-      print('❌ [_loadGroupParticipants] StackTrace: $stackTrace');
+      print('ERROR loadGroupParticipants: $e');
     }
   }
 
@@ -4159,6 +4047,49 @@ class _ChatScreenState extends State<ChatScreen> {
       return Container(color: Theme.of(context).colorScheme.surface);
     }
     switch (provider.chatWallpaperType) {
+      case ChatWallpaperType.komet:
+        return RepaintBoundary(
+          child: Container(
+            color: Theme.of(context).colorScheme.surface,
+            child: Opacity(
+              opacity: 0.3,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  const svgSize = 400.0;
+                  final rows = (constraints.maxHeight / svgSize).ceil() + 1;
+                  final cols = (constraints.maxWidth / svgSize).ceil() + 1;
+                  return SizedBox(
+                    width: constraints.maxWidth,
+                    height: constraints.maxHeight,
+                    child: Stack(
+                      children: List.generate(rows * cols, (index) {
+                        final row = index ~/ cols;
+                        final col = index % cols;
+                        return Transform.translate(
+                          offset: Offset(col * svgSize, row * svgSize),
+                          child: RepaintBoundary(
+                            key: ValueKey('komet_tile_$row\_$col'),
+                            child: SvgPicture.asset(
+                              'assets/images/kometTheme_MERRY-CHRISTMASS.svg',
+                              width: svgSize,
+                              height: svgSize,
+                              fit: BoxFit.fill,
+                              colorFilter: ColorFilter.mode(
+                                AppColors.kometSvgColor,
+                                BlendMode.srcIn,
+                              ),
+                              cacheColorFilter: true,
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
       case ChatWallpaperType.solid:
         return Container(color: provider.chatWallpaperColor1);
       case ChatWallpaperType.gradient:

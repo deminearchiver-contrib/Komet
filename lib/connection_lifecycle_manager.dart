@@ -47,13 +47,12 @@ class _ConnectionLifecycleManagerState extends State<ConnectionLifecycleManager>
     super.didChangeAppLifecycleState(state);
     switch (state) {
       case AppLifecycleState.resumed:
-        print("✅ Приложение возобновлено.");
+        print("Возобновлено");
         ApiService.instance.setAppInForeground(true);
         ApiService.instance.sendNavEvent('WARM_START');
         _checkAndReconnectIfNeeded();
         break;
       case AppLifecycleState.paused:
-        print("⏸️ Приложение свернуто.");
         ApiService.instance.setAppInForeground(false);
         ApiService.instance.sendNavEvent('GO', screenTo: 1, screenFrom: 150);
         break;
