@@ -822,6 +822,7 @@ class ChatMessageBubble extends StatelessWidget {
     String? highQualityUrl,
     Uint8List? lowQualityBytes,
     int? videoType,
+    bool showNameHeader = false,
   }) {
     void openFullScreenVideo() async {
       showDialog(
@@ -876,7 +877,12 @@ class ChatMessageBubble extends StatelessWidget {
         child: AspectRatio(
           aspectRatio: 16 / 9,
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: showNameHeader
+                ? const BorderRadius.only(
+                    bottomLeft: Radius.circular(12),
+                    bottomRight: Radius.circular(12),
+                  )
+                : BorderRadius.circular(12),
             child: Stack(
               alignment: Alignment.center,
               fit: StackFit.expand,
@@ -1169,19 +1175,22 @@ class ChatMessageBubble extends StatelessWidget {
       return _buildVideoOnlyMessage(context);
     }
 
-    final hasUnsupportedContent = _hasUnsupportedMessageTypes();
-
-    final messageOpacity = themeProvider.messageBubbleOpacity;
-    final messageTextOpacity = themeProvider.messageTextOpacity;
-    final messageShadowIntensity = themeProvider.messageShadowIntensity;
-    final messageBorderRadius = themeProvider.messageBorderRadius;
-
     final isFileOnly =
         message.attaches.isNotEmpty &&
         message.attaches.every((a) => a['_type'] == 'FILE') &&
         message.text.isEmpty &&
         !message.isReply &&
         !message.isForwarded;
+    if (isFileOnly) {
+      return _buildFileOnlyMessage(context);
+    }
+
+    final hasUnsupportedContent = _hasUnsupportedMessageTypes();
+
+    final messageOpacity = themeProvider.messageBubbleOpacity;
+    final messageTextOpacity = themeProvider.messageTextOpacity;
+    final messageShadowIntensity = themeProvider.messageShadowIntensity;
+    final messageBorderRadius = themeProvider.messageBorderRadius;
 
     final bubbleColor = _getBubbleColor(
       isMe,
@@ -1196,16 +1205,11 @@ class ChatMessageBubble extends StatelessWidget {
       context,
     );
 
-    BoxDecoration bubbleDecoration;
-    if (isFileOnly) {
-      bubbleDecoration = const BoxDecoration(color: Colors.transparent);
-    } else {
-      bubbleDecoration = _createBubbleDecoration(
-        bubbleColor,
-        messageBorderRadius,
-        messageShadowIntensity,
-      );
-    }
+    BoxDecoration bubbleDecoration = _createBubbleDecoration(
+      bubbleColor,
+      messageBorderRadius,
+      messageShadowIntensity,
+    );
 
     if (hasUnsupportedContent) {
       return _buildUnsupportedMessage(
@@ -1729,6 +1733,67 @@ class ChatMessageBubble extends StatelessWidget {
     return videoContent;
   }
 
+  Widget _buildNameHeaderWithReply({
+    required BuildContext context,
+    required String name,
+    required Color bubbleColor,
+    required bool isUltraOptimized,
+    required int senderId,
+  }) {
+    final nameColor = _getUserColor(senderId, context).withOpacity(0.8);
+    final canReply = onReply != null && !isChannel;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final hasSpaceForReply = screenWidth > 280;
+    const replyColor = Colors.grey;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: bubbleColor,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(isUltraOptimized ? 4 : 12),
+          topRight: Radius.circular(isUltraOptimized ? 4 : 12),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              name,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: nameColor,
+                fontSize: 12,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (canReply) ...[
+            const SizedBox(width: 8),
+            if (hasSpaceForReply)
+              GestureDetector(
+                onTap: onReply,
+                child: const Text(
+                  'ответить',
+                  style: TextStyle(fontSize: 12, color: replyColor),
+                ),
+              )
+            else
+              GestureDetector(
+                onTap: onReply,
+                child: const Icon(
+                  Icons.more_horiz,
+                  size: 16,
+                  color: replyColor,
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildPhotoOnlyMessage(BuildContext context) {
     final photos = message.attaches
         .where((a) => a['_type'] == 'PHOTO')
@@ -1777,30 +1842,46 @@ class ChatMessageBubble extends StatelessWidget {
                       : null,
                 ),
               ],
-              Column(
-                crossAxisAlignment: isMe
-                    ? CrossAxisAlignment.end
-                    : CrossAxisAlignment.start,
-                children: [
-                  _buildSmartPhotoGroup(
-                    context,
-                    photos,
-                    textColor,
-                    isUltraOptimized,
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2, right: 6),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _formatMessageTime(context, message.time),
-                          style: TextStyle(fontSize: 12, color: timeColor),
-                        ),
-                      ],
+              IntrinsicWidth(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (photos.length == 1 &&
+                        isGroupChat &&
+                        !isMe &&
+                        senderName != null)
+                      _buildNameHeaderWithReply(
+                        context: context,
+                        name: senderName!,
+                        bubbleColor: bubbleColor,
+                        isUltraOptimized: isUltraOptimized,
+                        senderId: message.senderId,
+                      ),
+                    _buildSmartPhotoGroup(
+                      context,
+                      photos,
+                      textColor,
+                      isUltraOptimized,
+                      showNameHeader:
+                          photos.length == 1 &&
+                          isGroupChat &&
+                          !isMe &&
+                          senderName != null,
                     ),
-                  ),
-                ],
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2, right: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _formatMessageTime(context, message.time),
+                            style: TextStyle(fontSize: 12, color: timeColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -1831,10 +1912,22 @@ class ChatMessageBubble extends StatelessWidget {
     final videos = message.attaches
         .where((a) => a['_type'] == 'VIDEO')
         .toList();
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isUltraOptimized = themeProvider.ultraOptimizeChats;
+    final messageOpacity = themeProvider.messageBubbleOpacity;
+    final bubbleColor = _getBubbleColor(
+      isMe,
+      themeProvider,
+      messageOpacity,
+      context,
+    );
 
     final timeColor = Theme.of(context).brightness == Brightness.dark
         ? const Color(0xFF9bb5c7)
         : const Color(0xFF6b7280);
+
+    final showNameHeader =
+        videos.length == 1 && isGroupChat && !isMe && senderName != null;
 
     Widget videoContent = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
@@ -1896,48 +1989,59 @@ class ChatMessageBubble extends StatelessWidget {
                             : null,
                       ),
                     ],
-                    Column(
-                      crossAxisAlignment: isMe
-                          ? CrossAxisAlignment.end
-                          : CrossAxisAlignment.start,
-                      children: [
-                        if (videoId != null && chatId != null)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 4.0),
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 300),
-                              child: RepaintBoundary(
-                                key: ValueKey(
-                                  'video_preview_${message.cid ?? message.id}_$videoId',
+                    IntrinsicWidth(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (showNameHeader && index == 0)
+                            _buildNameHeaderWithReply(
+                              context: context,
+                              name: senderName!,
+                              bubbleColor: bubbleColor,
+                              isUltraOptimized: isUltraOptimized,
+                              senderId: message.senderId,
+                            ),
+                          if (videoId != null && chatId != null)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4.0),
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 300,
                                 ),
-                                child: _buildVideoPreview(
-                                  context: context,
-                                  videoId: videoId,
-                                  messageId: message.id,
-                                  highQualityUrl: highQualityThumbnailUrl,
-                                  lowQualityBytes: previewBytes,
-                                  videoType: videoType,
+                                child: RepaintBoundary(
+                                  key: ValueKey(
+                                    'video_preview_${message.cid ?? message.id}_$videoId',
+                                  ),
+                                  child: _buildVideoPreview(
+                                    context: context,
+                                    videoId: videoId,
+                                    messageId: message.id,
+                                    highQualityUrl: highQualityThumbnailUrl,
+                                    lowQualityBytes: previewBytes,
+                                    videoType: videoType,
+                                    showNameHeader: showNameHeader,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        if (index == videos.length - 1)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2, right: 6),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  _formatMessageTime(context, message.time),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: timeColor,
+                          if (index == videos.length - 1)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2, right: 6),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _formatMessageTime(context, message.time),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: timeColor,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -1965,6 +2069,147 @@ class ChatMessageBubble extends StatelessWidget {
     }
 
     return videoContent;
+  }
+
+  Widget _buildFileOnlyMessage(BuildContext context) {
+    final files = message.attaches.where((a) => a['_type'] == 'FILE').toList();
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isUltraOptimized = themeProvider.ultraOptimizeChats;
+    final messageOpacity = themeProvider.messageBubbleOpacity;
+    final messageTextOpacity = themeProvider.messageTextOpacity;
+    final bubbleColor = _getBubbleColor(
+      isMe,
+      themeProvider,
+      messageOpacity,
+      context,
+    );
+    final textColor = _getTextColor(
+      isMe,
+      bubbleColor,
+      messageTextOpacity,
+      context,
+    );
+
+    final timeColor = Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFF9bb5c7)
+        : const Color(0xFF6b7280);
+
+    final showNameHeader =
+        files.length == 1 && isGroupChat && !isMe && senderName != null;
+
+    Widget fileContent = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+      child: Column(
+        crossAxisAlignment: isMe
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: isMe
+                ? MainAxisAlignment.end
+                : MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (!isMe && isGroupChat && !isChannel) ...[
+                SizedBox(
+                  width: 40,
+                  child: isLastInGroup
+                      ? Transform.translate(
+                          offset: Offset(0, avatarVerticalOffset),
+                          child: _buildSenderAvatar(),
+                        )
+                      : null,
+                ),
+              ],
+              IntrinsicWidth(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (showNameHeader)
+                      _buildNameHeaderWithReply(
+                        context: context,
+                        name: senderName!,
+                        bubbleColor: bubbleColor,
+                        isUltraOptimized: isUltraOptimized,
+                        senderId: message.senderId,
+                      ),
+                    ...files.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final file = entry.value;
+                      final fileName = file['name'] ?? 'Файл';
+                      final fileSize = file['size'] as int? ?? 0;
+                      final preview = file['preview'] as Map<String, dynamic>?;
+                      final isMusic =
+                          preview != null && preview['_type'] == 'MUSIC';
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (isMusic)
+                            _buildMusicFileWidget(
+                              context,
+                              fileName,
+                              fileSize,
+                              file,
+                              textColor,
+                              isUltraOptimized,
+                              chatId,
+                              showNameHeader: showNameHeader && index == 0,
+                            )
+                          else
+                            _buildFileWidget(
+                              context,
+                              fileName,
+                              fileSize,
+                              file,
+                              textColor,
+                              isUltraOptimized,
+                              chatId,
+                              showNameHeader: showNameHeader && index == 0,
+                            ),
+                          if (index < files.length - 1)
+                            const SizedBox(height: 6),
+                        ],
+                      );
+                    }),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2, right: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _formatMessageTime(context, message.time),
+                            style: TextStyle(fontSize: 12, color: timeColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    if (onReaction != null || (isMe && (onEdit != null || onDelete != null))) {
+      if (isMobile) {
+        fileContent = _LongPressContextMenuWrapper(
+          child: fileContent,
+          onShowMenu: (offset) => _showMessageContextMenu(context, offset),
+        );
+      } else {
+        fileContent = GestureDetector(
+          onSecondaryTapDown: (TapDownDetails details) {
+            _showMessageContextMenu(context, details.globalPosition);
+          },
+          child: fileContent,
+        );
+      }
+    }
+
+    return fileContent;
   }
 
   Widget _buildStickerImage(
@@ -2358,9 +2603,15 @@ class ChatMessageBubble extends StatelessWidget {
     Map<String, dynamic> fileData,
     Color textColor,
     bool isUltraOptimized,
-    int? chatId,
-  ) {
-    final borderRadius = BorderRadius.circular(isUltraOptimized ? 8 : 12);
+    int? chatId, {
+    bool showNameHeader = false,
+  }) {
+    final borderRadius = showNameHeader
+        ? BorderRadius.only(
+            bottomLeft: Radius.circular(isUltraOptimized ? 8 : 12),
+            bottomRight: Radius.circular(isUltraOptimized ? 8 : 12),
+          )
+        : BorderRadius.circular(isUltraOptimized ? 8 : 12);
 
     final extension = _getFileExtension(fileName);
     final iconData = _getFileIcon(extension);
@@ -2519,9 +2770,15 @@ class ChatMessageBubble extends StatelessWidget {
     Map<String, dynamic> fileData,
     Color textColor,
     bool isUltraOptimized,
-    int? chatId,
-  ) {
-    final borderRadius = BorderRadius.circular(isUltraOptimized ? 8 : 12);
+    int? chatId, {
+    bool showNameHeader = false,
+  }) {
+    final borderRadius = showNameHeader
+        ? BorderRadius.only(
+            bottomLeft: Radius.circular(isUltraOptimized ? 8 : 12),
+            bottomRight: Radius.circular(isUltraOptimized ? 8 : 12),
+          )
+        : BorderRadius.circular(isUltraOptimized ? 8 : 12);
     final preview = fileData['preview'] as Map<String, dynamic>?;
     final fileId = fileData['fileId'] as int?;
     final token = fileData['token'] as String?;
@@ -3352,8 +3609,9 @@ class ChatMessageBubble extends StatelessWidget {
     BuildContext context,
     List<Map<String, dynamic>> photos,
     Color textColor,
-    bool isUltraOptimized,
-  ) {
+    bool isUltraOptimized, {
+    bool showNameHeader = false,
+  }) {
     final borderRadius = BorderRadius.circular(isUltraOptimized ? 4 : 12);
 
     final screenWidth = MediaQuery.of(context).size.width;
@@ -3366,7 +3624,12 @@ class ChatMessageBubble extends StatelessWidget {
         return _buildSinglePhoto(
           context,
           photos[0],
-          borderRadius,
+          showNameHeader
+              ? BorderRadius.only(
+                  bottomLeft: Radius.circular(isUltraOptimized ? 4 : 12),
+                  bottomRight: Radius.circular(isUltraOptimized ? 4 : 12),
+                )
+              : borderRadius,
           maxPhotoWidth,
         );
       case 2:
@@ -3386,20 +3649,11 @@ class ChatMessageBubble extends StatelessWidget {
     BorderRadius borderRadius,
     double maxWidth,
   ) {
-    return RepaintBoundary(
-      child: GestureDetector(
-        onTap: () => _openPhotoViewer(context, photo),
-        child: ClipRRect(
-          borderRadius: borderRadius,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: 180,
-              maxWidth: maxWidth.clamp(100.0, double.infinity),
-            ),
-            child: _buildPhotoWidget(context, photo),
-          ),
-        ),
-      ),
+    return _SinglePhotoWidget(
+      photo: photo,
+      maxWidth: maxWidth,
+      borderRadius: borderRadius,
+      onTap: () => _openPhotoViewer(context, photo),
     );
   }
 
@@ -7468,6 +7722,193 @@ class _VideoCirclePlayerState extends State<_VideoCirclePlayer> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SinglePhotoWidget extends StatefulWidget {
+  final Map<String, dynamic> photo;
+  final double maxWidth;
+  final BorderRadius borderRadius;
+  final VoidCallback onTap;
+
+  const _SinglePhotoWidget({
+    required this.photo,
+    required this.maxWidth,
+    required this.borderRadius,
+    required this.onTap,
+  });
+
+  @override
+  State<_SinglePhotoWidget> createState() => _SinglePhotoWidgetState();
+}
+
+class _SinglePhotoWidgetState extends State<_SinglePhotoWidget> {
+  double? _imageWidth;
+  double? _imageHeight;
+  ImageStreamListener? _imageStreamListener;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadImageDimensions();
+  }
+
+  @override
+  void dispose() {
+    _imageStreamListener = null;
+    super.dispose();
+  }
+
+  void _loadImageDimensions() {
+    final url = widget.photo['url'] ?? widget.photo['baseUrl'];
+    if (url is String && url.isNotEmpty && !url.startsWith('file://')) {
+      final imageProvider = NetworkImage(url);
+      _imageStreamListener = ImageStreamListener((ImageInfo info, bool _) {
+        if (mounted) {
+          setState(() {
+            _imageWidth = info.image.width.toDouble();
+            _imageHeight = info.image.height.toDouble();
+          });
+        }
+      }, onError: (_, __) {});
+      imageProvider
+          .resolve(const ImageConfiguration())
+          .addListener(_imageStreamListener!);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    double displayWidth = widget.maxWidth.clamp(150.0, 300.0);
+    double displayHeight = 180.0;
+
+    if (_imageWidth != null &&
+        _imageHeight != null &&
+        _imageWidth! > 0 &&
+        _imageHeight! > 0) {
+      final aspectRatio = _imageWidth! / _imageHeight!;
+
+      if (_imageWidth! >= _imageHeight!) {
+        displayWidth = widget.maxWidth.clamp(200.0, 300.0);
+        displayHeight = displayWidth / aspectRatio;
+        if (displayHeight > 400) {
+          displayHeight = 400;
+          displayWidth = displayHeight * aspectRatio;
+        }
+      } else {
+        displayWidth = widget.maxWidth.clamp(150.0, 250.0);
+        displayHeight = displayWidth / aspectRatio;
+        if (displayHeight > 350) {
+          displayHeight = 350;
+          displayWidth = displayHeight * aspectRatio;
+        }
+      }
+    }
+
+    if (displayHeight > 350) {
+      displayHeight = 350;
+      if (_imageWidth != null &&
+          _imageHeight != null &&
+          _imageWidth! > 0 &&
+          _imageHeight! > 0) {
+        final aspectRatio = _imageWidth! / _imageHeight!;
+        displayWidth = displayHeight * aspectRatio;
+      }
+    }
+
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: ClipRRect(
+        borderRadius: widget.borderRadius,
+        child: SizedBox(
+          width: displayWidth,
+          height: displayHeight,
+          child: _buildPhotoWidgetForSingle(
+            context,
+            widget.photo,
+            displayWidth,
+            displayHeight,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoWidgetForSingle(
+    BuildContext context,
+    Map<String, dynamic> attach,
+    double width,
+    double height,
+  ) {
+    Uint8List? previewBytes;
+    final preview = attach['previewData'];
+    if (preview is String && preview.startsWith('data:')) {
+      final idx = preview.indexOf('base64,');
+      if (idx != -1) {
+        final b64 = preview.substring(idx + 7);
+        try {
+          previewBytes = base64Decode(b64);
+        } catch (_) {}
+      }
+    }
+
+    final url = attach['url'] ?? attach['baseUrl'];
+    if (url is String && url.isNotEmpty) {
+      if (url.startsWith('file://')) {
+        final path = url.replaceFirst('file://', '');
+        return Image.file(
+          File(path),
+          fit: BoxFit.contain,
+          width: width,
+          height: height,
+          filterQuality: FilterQuality.medium,
+          gaplessPlayback: true,
+          errorBuilder: (context, _, __) => _imagePlaceholder(),
+        );
+      }
+
+      String previewQualityUrl = url;
+      if (!url.contains('?')) {
+        previewQualityUrl = '$url?size=medium&quality=high&format=jpeg';
+      } else {
+        previewQualityUrl = '$url&size=medium&quality=high&format=jpeg';
+      }
+
+      final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+      final optimize =
+          themeProvider.optimizeChats || themeProvider.ultraOptimizeChats;
+
+      return _ProgressiveNetworkImage(
+        key: ValueKey(previewQualityUrl),
+        url: previewQualityUrl,
+        previewBytes: previewBytes,
+        width: width,
+        height: height,
+        fit: BoxFit.contain,
+        keepAlive: !optimize,
+        startDownloadNextFrame: false,
+      );
+    }
+
+    if (previewBytes != null) {
+      return Image.memory(
+        previewBytes,
+        fit: BoxFit.contain,
+        width: width,
+        height: height,
+      );
+    }
+
+    return _imagePlaceholder();
+  }
+
+  Widget _imagePlaceholder() {
+    return Container(
+      width: 220,
+      height: 160,
+      color: Colors.grey[300],
+      child: const Icon(Icons.image_outlined, color: Colors.black38),
     );
   }
 }
