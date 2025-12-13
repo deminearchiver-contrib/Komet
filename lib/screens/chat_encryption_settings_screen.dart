@@ -122,11 +122,15 @@ class _ChatEncryptionSettingsScreenState
               ),
               value: _sendEncrypted,
               onChanged: _isPasswordCurrentlySet
-                  ? (value) {
+                  ? (value) async {
                       if (!mounted) return;
                       setState(() {
                         _sendEncrypted = value;
                       });
+                      await ChatEncryptionService.setSendEncryptedForChat(
+                        widget.chatId,
+                        value,
+                      );
                     }
                   : null,
             ),

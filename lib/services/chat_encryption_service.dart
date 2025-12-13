@@ -64,6 +64,20 @@ class ChatEncryptionService {
 
     if (prefixLength == 0) return false;
     if (text.length <= prefixLength) return false;
+    
+    final payloadPart = text.substring(prefixLength);
+    if (payloadPart.length < 20) return false;
+    
+    final hasRussianLetters = RegExp(r'[А-Яа-я]').hasMatch(payloadPart);
+    final hasSpecialWords = payloadPart.contains('привет') || 
+                           payloadPart.contains('незнаю') || 
+                           payloadPart.contains('хм');
+    
+    if (!hasRussianLetters && !hasSpecialWords) return false;
+    
+    final validChars = RegExp(r'^[А-Яа-яA-Za-z0-9приветнезнаюхм_-]+$');
+    if (!validChars.hasMatch(payloadPart)) return false;
+    
     return true;
   }
 

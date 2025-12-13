@@ -220,6 +220,8 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<Message> _messages = [];
   List<ChatItem> _chatItems = [];
   final Set<String> _animatedMessageIds = {};
+  List<Map<String, dynamic>> _cachedAllPhotos = [];
+  String? _highlightedMessageId;
 
   bool _isLoadingHistory = true;
   Map<String, dynamic>? _emptyChatSticker;
@@ -1259,12 +1261,6 @@ class _ChatScreenState extends State<ChatScreen> {
               print(
                 'Обновлен presence для пользователя $cid: online=$isOnline, seen=$currentTime',
               );
-
-              Future.microtask(() {
-                if (mounted) {
-                  setState(() {});
-                }
-              });
             }
           }
         }
@@ -1624,6 +1620,11 @@ class _ChatScreenState extends State<ChatScreen> {
     final List<ChatItem> items = [];
     final source = _messages;
 
+    for (final msg in source) {
+      final key = msg.cid != null ? 'cid_${msg.cid}' : msg.id;
+      _animatedMessageIds.add(key);
+    }
+
     for (int i = 0; i < source.length; i++) {
       final currentMessage = source[i];
       final previousMessage = (i > 0) ? source[i - 1] : null;
@@ -1659,6 +1660,21 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
     _chatItems = items;
+    _updateCachedPhotos();
+  }
+
+  void _updateCachedPhotos() {
+    final List<Map<String, dynamic>> allPhotos = [];
+    for (final msg in _messages) {
+      for (final attach in msg.attaches) {
+        if (attach['_type'] == 'PHOTO') {
+          final photo = Map<String, dynamic>.from(attach);
+          photo['_messageId'] = msg.id;
+          allPhotos.add(photo);
+        }
+      }
+    }
+    _cachedAllPhotos = allPhotos.reversed.toList();
   }
 
   Future<void> _loadEmptyChatSticker() async {
@@ -1807,6 +1823,11 @@ class _ChatScreenState extends State<ChatScreen> {
     final lastMessage = _messages.isNotEmpty ? _messages.last : null;
     _messages.add(message);
 
+    final hasPhoto = message.attaches.any((a) => a['_type'] == 'PHOTO');
+    if (hasPhoto) {
+      _updateCachedPhotos();
+    }
+
     final currentDate = DateTime.fromMillisecondsSinceEpoch(
       message.time,
     ).toLocal();
@@ -1850,27 +1871,22 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _updatePinnedMessage();
 
-    final theme = context.read<ThemeProvider>();
-    if (theme.messageTransition == TransitionOption.slide) {
-      print('Добавлено новое сообщение для анимации Slide+: ${message.id}');
-    } else {
-      _animatedMessageIds.add(message.id);
-    }
+    final animKey = message.cid != null ? 'cid_${message.cid}' : message.id;
 
-    Future.microtask(() {
-      if (mounted) {
-        setState(() {});
-
-        if ((wasAtBottom || isMyMessage || forceScroll) &&
-            _itemScrollController.isAttached) {
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {});
+          if ((wasAtBottom || isMyMessage || forceScroll) &&
+              _itemScrollController.isAttached) {
+            _itemScrollController.jumpTo(index: 0);
+          }
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (_itemScrollController.isAttached) {
-              _itemScrollController.jumpTo(index: 0);
-            }
+            _animatedMessageIds.add(animKey);
           });
         }
-      }
-    });
+      });
+    }
   }
 
   void _updateMessageReaction(
@@ -1893,11 +1909,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
       print('Обновлена реакция для сообщения $messageId: $reactionInfo');
 
-      Future.microtask(() {
-        if (mounted) {
-          setState(() {});
-        }
-      });
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
@@ -1941,6 +1955,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _buildChatItems();
 
       print('Оптимистично добавлена реакция $emoji к сообщению $messageId');
+      _buildChatItems();
 
       if (mounted) {
         setState(() {});
@@ -1994,38 +2009,69 @@ class _ChatScreenState extends State<ChatScreen> {
 
         print('Оптимистично удалена реакция с сообщения $messageId');
 
-        Future.microtask(() {
-          if (mounted) {
-            setState(() {});
-          }
-        });
+        if (mounted) {
+          setState(() {});
+        }
       }
     }
   }
 
   void _updateMessage(Message updatedMessage) {
-    final index = _messages.indexWhere((m) => m.id == updatedMessage.id);
-    if (index != -1) {
-      print(
-        'Обновляем сообщение ${updatedMessage.id}: "${_messages[index].text}" -> "${updatedMessage.text}"',
+    int? index = _messages.indexWhere((m) => m.id == updatedMessage.id);
+    if (index == -1 && updatedMessage.cid != null) {
+      index = _messages.indexWhere(
+        (m) => m.cid != null && m.cid == updatedMessage.cid,
       );
+    }
 
+    if (index != -1 && index < _messages.length) {
       final oldMessage = _messages[index];
       final finalMessage = updatedMessage.link != null
           ? updatedMessage
           : updatedMessage.copyWith(link: oldMessage.link);
 
-      print('Обновляем link: ${oldMessage.link} -> ${finalMessage.link}');
+      final oldHasPhoto = oldMessage.attaches.any((a) => a['_type'] == 'PHOTO');
+      final newHasPhoto = finalMessage.attaches.any(
+        (a) => a['_type'] == 'PHOTO',
+      );
 
       _messages[index] = finalMessage;
-      ApiService.instance.clearCacheForChat(widget.chatId);
-      _buildChatItems();
 
-      Future.microtask(() {
+      if (oldHasPhoto != newHasPhoto) {
+        _updateCachedPhotos();
+      }
+
+      final chatItemIndex = _chatItems.indexWhere(
+        (item) =>
+            item is MessageItem &&
+            (item.message.id == oldMessage.id ||
+                item.message.id == updatedMessage.id ||
+                (updatedMessage.cid != null &&
+                    item.message.cid != null &&
+                    item.message.cid == updatedMessage.cid)),
+      );
+
+      if (chatItemIndex != -1) {
+        final oldItem = _chatItems[chatItemIndex] as MessageItem;
+        _chatItems[chatItemIndex] = MessageItem(
+          finalMessage,
+          isFirstInGroup: oldItem.isFirstInGroup,
+          isLastInGroup: oldItem.isLastInGroup,
+          isGrouped: oldItem.isGrouped,
+        );
+
         if (mounted) {
           setState(() {});
         }
-      });
+      } else {
+        print(
+          '⚠️ Элемент не найден в _chatItems для сообщения ${updatedMessage.id}, cid: ${updatedMessage.cid}. Перестраиваем список.',
+        );
+        _buildChatItems();
+        if (mounted) {
+          setState(() {});
+        }
+      }
     } else {
       print(
         'Сообщение ${updatedMessage.id} не найдено для обновления. Запрашиваем свежую историю...',
@@ -3248,13 +3294,16 @@ class _ChatScreenState extends State<ChatScreen> {
 
                                   if (item is MessageItem) {
                                     final message = item.message;
-                                    final bool isHighlighted =
+                                    final bool isSearchHighlighted =
                                         _isSearching &&
                                         _searchResults.isNotEmpty &&
                                         _currentResultIndex != -1 &&
                                         message.id ==
                                             _searchResults[_currentResultIndex]
                                                 .id;
+                                    final bool isHighlighted =
+                                        isSearchHighlighted ||
+                                        message.id == _highlightedMessageId;
 
                                     final isControlMessage = message.attaches
                                         .any((a) => a['_type'] == 'CONTROL');
@@ -3362,11 +3411,15 @@ class _ChatScreenState extends State<ChatScreen> {
                                         }
                                       }
                                     }
+                                    final stableKey = item.message.cid != null
+                                        ? 'cid_${item.message.cid}'
+                                        : item.message.id;
+
                                     final hasPhoto = item.message.attaches.any(
                                       (a) => a['_type'] == 'PHOTO',
                                     );
                                     final isNew = !_animatedMessageIds.contains(
-                                      item.message.id,
+                                      stableKey,
                                     );
                                     final deferImageLoading =
                                         hasPhoto &&
@@ -3395,7 +3448,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                     }
 
                                     final bubble = ChatMessageBubble(
-                                      key: ValueKey(message.id),
+                                      key: ValueKey(stableKey),
                                       message: item.message,
                                       isMe: isMe,
                                       readStatus: readStatus,
@@ -3482,12 +3535,13 @@ class _ChatScreenState extends State<ChatScreen> {
                                       avatarVerticalOffset: -8.0,
                                       onComplain: () =>
                                           _showComplaintDialog(item.message.id),
-                                      allPhotos: _getAllPhotos(),
+                                      allPhotos: _cachedAllPhotos,
                                       onGoToMessage: _scrollToMessage,
                                     );
 
-                                    Widget finalMessageWidget =
-                                        bubble as Widget;
+                                    Widget finalMessageWidget = RepaintBoundary(
+                                      child: bubble,
+                                    );
 
                                     if (isHighlighted) {
                                       return TweenAnimationBuilder<double>(
@@ -3527,7 +3581,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
                                     if (isNew && !_anyOptimize) {
                                       return _NewMessageAnimation(
-                                        key: ValueKey('anim_${message.id}'),
+                                        key: ValueKey('anim_$stableKey'),
                                         child: finalMessageWidget,
                                       );
                                     }
@@ -5439,20 +5493,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  List<Map<String, dynamic>> _getAllPhotos() {
-    final List<Map<String, dynamic>> allPhotos = [];
-    for (final msg in _messages) {
-      for (final attach in msg.attaches) {
-        if (attach['_type'] == 'PHOTO') {
-          final photo = Map<String, dynamic>.from(attach);
-          photo['_messageId'] = msg.id;
-          allPhotos.add(photo);
-        }
-      }
-    }
-    return allPhotos.reversed.toList();
-  }
-
   void _scrollToMessage(String messageId) {
     if (!mounted) return;
 
@@ -5468,12 +5508,24 @@ class _ChatScreenState extends State<ChatScreen> {
 
         if (!mounted || !_itemScrollController.isAttached) return;
 
+        setState(() {
+          _highlightedMessageId = messageId;
+        });
+
         _itemScrollController.scrollTo(
           index: viewIndex,
           duration: const Duration(milliseconds: 400),
           curve: Curves.easeInOutCubic,
           alignment: 0.2,
         );
+
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            setState(() {
+              _highlightedMessageId = null;
+            });
+          }
+        });
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -5498,20 +5550,25 @@ class _NewMessageAnimationState extends State<_NewMessageAnimation>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _opacity;
-  late final Animation<Offset> _slide;
+  late final Animation<double> _slideValue;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 350),
       vsync: this,
     );
-    _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
-    _slide = Tween<Offset>(
-      begin: const Offset(0, 0.1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+      ),
+    );
+    _slideValue = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutQuart));
     _controller.forward();
   }
 
@@ -5523,9 +5580,18 @@ class _NewMessageAnimationState extends State<_NewMessageAnimation>
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _opacity,
-      child: SlideTransition(position: _slide, child: widget.child),
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _opacity.value,
+          child: Transform.translate(
+            offset: Offset(0, 30 * _slideValue.value),
+            child: child,
+          ),
+        );
+      },
+      child: widget.child,
     );
   }
 }
