@@ -92,12 +92,10 @@ class _OTPScreenState extends State<OTPScreen> {
               final userIdInt = userId != null ? int.tryParse(userId) : null;
               final isAllowed = await whitelistService.checkAndValidate(
                 userIdInt,
-                widget.phoneNumber,
               );
 
               if (!isAllowed) {
                 if (mounted) {
-                  await ApiService.instance.logout();
                   Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(
                       builder: (context) => const PhoneEntryScreen(),
@@ -106,7 +104,7 @@ class _OTPScreenState extends State<OTPScreen> {
                   );
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('ТЫ НЕ В ВАЙТЛИСТЕ IDI NAHUI'),
+                      content: Text('АЛО ТЫ НЕ В ВАЙТЛИСТЕ'),
                       backgroundColor: Colors.red,
                       duration: Duration(seconds: 5),
                     ),

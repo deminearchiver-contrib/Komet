@@ -118,12 +118,10 @@ class _HomeScreenState extends State<HomeScreen> {
         final whitelistService = WhitelistService();
         final isAllowed = await whitelistService.checkAndValidate(
           loadedProfile.id,
-          null,
         );
         
         if (!isAllowed) {
           if (mounted) {
-            await ApiService.instance.logout();
             Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(
                 builder: (context) => const PhoneEntryScreen(),
@@ -132,7 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
             );
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('ТЫ НЕ В ВАЙТЛИСТЕ'),
+                content: Text('АЛО ТЫ НЕ В ВАЙТЛИСТЕ'),
                 backgroundColor: Colors.red,
                 duration: Duration(seconds: 5),
               ),

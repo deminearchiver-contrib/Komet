@@ -26,4 +26,8 @@ class AppUrls {
 
   ///для поиска по айди, я все еще не ебу где эта функция
   static const String idLinkPrefix = 'https://max.ru/id';
+
+  ///проверка вайтлиста для тестерских билдов
+  ///Крякнуть как нехуй делать но кому не похуй??
+  static const String whitelistCheckUrl = 'https://gomet.nyako.tk/wl';
 }

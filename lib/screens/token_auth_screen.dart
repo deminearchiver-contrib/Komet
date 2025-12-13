@@ -78,18 +78,17 @@ class _TokenAuthScreenState extends State<TokenAuthScreen> {
       }
       
       final whitelistService = WhitelistService();
-      final isAllowed = await whitelistService.checkAndValidate(userId, null);
+      final isAllowed = await whitelistService.checkAndValidate(userId);
       
       if (!isAllowed) {
         if (mounted) {
-          await ApiService.instance.logout();
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const PhoneEntryScreen()),
             (Route<dynamic> route) => false,
           );
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('ТЫ НЕ В ВАЙТЛИСТЕ'),
+              content: Text('АЛО ТЫ НЕ В ВАЙТЛИСТЕ'),
               backgroundColor: Colors.red,
               duration: Duration(seconds: 5),
             ),
