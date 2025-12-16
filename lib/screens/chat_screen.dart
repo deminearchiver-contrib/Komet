@@ -32,130 +32,15 @@ import 'package:gwid/screens/chat_encryption_settings_screen.dart';
 import 'package:gwid/screens/chat_media_screen.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:gwid/services/chat_encryption_service.dart';
-import 'package:lottie/lottie.dart';
 import 'package:gwid/widgets/formatted_text_controller.dart';
+import 'package:gwid/screens/chat/models/chat_item.dart';
+import 'package:gwid/screens/chat/widgets/empty_chat_widget.dart';
+import 'package:gwid/widgets/message_bubble/models/message_read_status.dart';
 
 bool _debugShowExactDate = false;
 
 void toggleDebugExactDate() {
   _debugShowExactDate = !_debugShowExactDate;
-}
-
-abstract class ChatItem {}
-
-class MessageItem extends ChatItem {
-  final Message message;
-  final bool isFirstInGroup;
-  final bool isLastInGroup;
-  final bool isGrouped;
-
-  MessageItem(
-    this.message, {
-    this.isFirstInGroup = false,
-    this.isLastInGroup = false,
-    this.isGrouped = false,
-  });
-}
-
-class DateSeparatorItem extends ChatItem {
-  final DateTime date;
-  DateSeparatorItem(this.date);
-}
-
-class _EmptyChatWidget extends StatelessWidget {
-  final Map<String, dynamic>? sticker;
-  final VoidCallback? onStickerTap;
-
-  const _EmptyChatWidget({super.key, this.sticker, this.onStickerTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (sticker != null) ...[
-            GestureDetector(
-              onTap: onStickerTap,
-              child: _buildSticker(sticker!),
-            ),
-            const SizedBox(height: 24),
-          ] else ...[
-            const SizedBox(
-              width: 170,
-              height: 170,
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            const SizedBox(height: 24),
-          ],
-          Text(
-            'Сообщений пока нет, напишите первым или отправьте этот стикер',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              color: colors.onSurface.withOpacity(0.6),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSticker(Map<String, dynamic> sticker) {
-    final url = sticker['url'] as String?;
-    final lottieUrl = sticker['lottieUrl'] as String?;
-    final width = (sticker['width'] as num?)?.toDouble() ?? 170.0;
-    final height = (sticker['height'] as num?)?.toDouble() ?? 170.0;
-
-    if (lottieUrl != null && lottieUrl.isNotEmpty) {
-      return SizedBox(
-        width: width,
-        height: height,
-        child: Lottie.network(
-          lottieUrl,
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) {
-            if (url != null && url.isNotEmpty) {
-              return Image.network(url, fit: BoxFit.contain);
-            }
-            return Icon(Icons.emoji_emotions, size: width, color: Colors.grey);
-          },
-        ),
-      );
-    }
-
-    final imageUrl = url;
-
-    if (imageUrl != null && imageUrl.isNotEmpty) {
-      return SizedBox(
-        width: width,
-        height: height,
-        child: Image.network(
-          imageUrl,
-          fit: BoxFit.contain,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) {
-              return child;
-            }
-            return Center(
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                          loadingProgress.expectedTotalBytes!
-                    : null,
-              ),
-            );
-          },
-          errorBuilder: (context, error, stackTrace) {
-            return Icon(Icons.emoji_emotions, size: width, color: Colors.grey);
-          },
-        ),
-      );
-    }
-    return Icon(Icons.emoji_emotions, size: width, color: Colors.grey);
-  }
 }
 
 class ChatScreen extends StatefulWidget {
@@ -657,7 +542,7 @@ class _ChatScreenState extends State<ChatScreen> {
           await ChatCacheService().cacheChatContacts(widget.chatId, contacts);
         }
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       print('ERROR loadGroupParticipants: $e');
     }
   }
@@ -3009,7 +2894,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       switchInCurve: Curves.easeInOutCubic,
                       switchOutCurve: Curves.easeInOutCubic,
                       transitionBuilder: (child, animation) {
-                        if (!mounted) return child ?? const SizedBox.shrink();
+                        if (!mounted) return child;
                         return FadeTransition(
                           opacity: animation,
                           child: ScaleTransition(
@@ -3029,7 +2914,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               child: CircularProgressIndicator(),
                             )
                           : _messages.isEmpty && !widget.isChannel
-                          ? _EmptyChatWidget(
+                          ? EmptyChatWidget(
                               key: const ValueKey('empty'),
                               sticker: _emptyChatSticker,
                               onStickerTap: _sendEmptyChatSticker,
@@ -4035,7 +3920,10 @@ class _ChatScreenState extends State<ChatScreen> {
               vertical: 8.0,
             ),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface.withOpacity(0.7),
+              color: Theme.of(context)
+                  .colorScheme
+                  .surface
+                  .withOpacity(theme.bottomBarOpacity),
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
@@ -6920,57 +6808,6 @@ class _RemoveMemberDialogState extends State<_RemoveMemberDialog> {
             foregroundColor: Colors.white,
           ),
           child: Text('Удалить (${_selectedMembers.length})'),
-        ),
-      ],
-    );
-  }
-}
-
-class _PromoteAdminDialog extends StatelessWidget {
-  final List<Map<String, dynamic>> members;
-  final Function(int) onPromoteToAdmin;
-
-  const _PromoteAdminDialog({
-    required this.members,
-    required this.onPromoteToAdmin,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Назначить администратором'),
-      content: SizedBox(
-        width: double.maxFinite,
-        height: 300,
-        child: ListView.builder(
-          itemCount: members.length,
-          itemBuilder: (context, index) {
-            final member = members[index];
-            final memberId = member['id'] as int;
-            final memberName = member['name'] as String;
-
-            return ListTile(
-              leading: CircleAvatar(
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                child: Text(
-                  memberName[0].toUpperCase(),
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onPrimary,
-                  ),
-                ),
-              ),
-              title: Text(memberName),
-              subtitle: Text('ID: $memberId'),
-              trailing: const Icon(Icons.admin_panel_settings),
-              onTap: () => onPromoteToAdmin(memberId),
-            );
-          },
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Отмена'),
         ),
       ],
     );

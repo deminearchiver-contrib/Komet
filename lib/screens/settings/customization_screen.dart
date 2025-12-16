@@ -281,9 +281,6 @@ class _CustomizationScreenState extends State<CustomizationScreen> {
               _ModernSection(
                 title: "Сообщения",
                 children: [
-                  const _MessageBubblesPreview(),
-                  const SizedBox(height: 16),
-
                   _ExpandableSection(
                     title: "Прозрачность",
                     initiallyExpanded: false,
@@ -480,9 +477,6 @@ class _CustomizationScreenState extends State<CustomizationScreen> {
           _ModernSection(
             title: "Всплывающие окна",
             children: [
-              _DialogPreview(),
-              const SizedBox(height: 16),
-
               _ExpandableSection(
                 title: "Настройки",
                 initiallyExpanded: false,
@@ -848,9 +842,6 @@ class _CustomizationScreenState extends State<CustomizationScreen> {
           _ModernSection(
             title: "Панели чата",
             children: [
-              _PanelsPreview(),
-              const SizedBox(height: 16),
-
               _CustomSettingTile(
                 icon: Icons.tune,
                 title: "Эффект стекла для панелей",
@@ -1406,28 +1397,35 @@ class AppThemeSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _ThemeButton(
-          theme: AppTheme.light,
-          selectedTheme: selectedTheme,
-          onChanged: onChanged,
-          icon: Icons.light_mode_outlined,
-          label: "Светлая",
+        Expanded(
+          child: _ThemeButton(
+            theme: AppTheme.light,
+            selectedTheme: selectedTheme,
+            onChanged: onChanged,
+            icon: Icons.light_mode_outlined,
+            label: "Светлая",
+          ),
         ),
-        _ThemeButton(
-          theme: AppTheme.dark,
-          selectedTheme: selectedTheme,
-          onChanged: onChanged,
-          icon: Icons.dark_mode_outlined,
-          label: "Тёмная",
+        const SizedBox(width: 8),
+        Expanded(
+          child: _ThemeButton(
+            theme: AppTheme.dark,
+            selectedTheme: selectedTheme,
+            onChanged: onChanged,
+            icon: Icons.dark_mode_outlined,
+            label: "Тёмная",
+          ),
         ),
-        _ThemeButton(
-          theme: AppTheme.black,
-          selectedTheme: selectedTheme,
-          onChanged: onChanged,
-          icon: Icons.dark_mode,
-          label: "OLED",
+        const SizedBox(width: 8),
+        Expanded(
+          child: _ThemeButton(
+            theme: AppTheme.black,
+            selectedTheme: selectedTheme,
+            onChanged: onChanged,
+            icon: Icons.dark_mode,
+            label: "OLED",
+          ),
         ),
       ],
     );
@@ -1458,9 +1456,8 @@ class _ThemeButton extends StatelessWidget {
       onTap: () => onChanged(theme),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: 70,
-        height: 70,
-        padding: const EdgeInsets.all(8),
+        height: 72,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
               ? colors.primaryContainer
@@ -1471,28 +1468,30 @@ class _ThemeButton extends StatelessWidget {
           ),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Column(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               icon,
-              size: 24,
+              size: 22,
               color: isSelected
                   ? colors.onPrimaryContainer
                   : colors.onSurfaceVariant,
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected
-                    ? colors.onPrimaryContainer
-                    : colors.onSurfaceVariant,
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  color: isSelected
+                      ? colors.onPrimaryContainer
+                      : colors.onSurfaceVariant,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
             ),
           ],
         ),
@@ -1559,9 +1558,7 @@ class _MessagePreviewSection extends StatelessWidget {
                         ),
                         child: Container(
                           height: 40,
-                          color: colors.surface.withOpacity(
-                            theme.useGlassPanels ? theme.topBarOpacity : 0.0,
-                          ),
+                          color: colors.surface.withOpacity(theme.topBarOpacity),
                           child: Row(
                             children: [
                               const SizedBox(width: 16),
@@ -1613,9 +1610,8 @@ class _MessagePreviewSection extends StatelessWidget {
                         ),
                         child: Container(
                           height: 40,
-                          color: colors.surface.withOpacity(
-                            theme.useGlassPanels ? theme.bottomBarOpacity : 0.0,
-                          ),
+                          color:
+                              colors.surface.withOpacity(theme.bottomBarOpacity),
                           child: Row(
                             children: [
                               const SizedBox(width: 16),
@@ -1915,276 +1911,6 @@ class _ExpandableSectionState extends State<_ExpandableSection> {
         ),
         if (_isExpanded) ...[const SizedBox(height: 8), ...widget.children],
       ],
-    );
-  }
-}
-
-class _MessageBubblesPreview extends StatelessWidget {
-  const _MessageBubblesPreview();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    final mockMyMessage = Message(
-      id: '1',
-      senderId: 100,
-      text: "Выглядит отлично! 🔥",
-      time: DateTime.now().millisecondsSinceEpoch,
-      attaches: const [],
-    );
-    final mockTheirMessage = Message(
-      id: '2',
-      senderId: 200,
-      text: "Привет! Как тебе новый вид?",
-      time: DateTime.now().millisecondsSinceEpoch,
-      attaches: const [],
-    );
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: ChatMessageBubble(
-                  message: mockTheirMessage,
-                  isMe: false,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Spacer(),
-              Expanded(
-                child: ChatMessageBubble(message: mockMyMessage, isMe: true),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DialogPreview extends StatelessWidget {
-  const _DialogPreview();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = context.watch<ThemeProvider>();
-    final colors = Theme.of(context).colorScheme;
-
-    return Container(
-      height: 120,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Stack(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    colors.primary.withOpacity(0.1),
-                    colors.secondary.withOpacity(0.1),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-            ),
-
-            if (theme.profileDialogBlur > 0)
-              BackdropFilter(
-                filter: ImageFilter.blur(
-                  sigmaX: theme.profileDialogBlur,
-                  sigmaY: theme.profileDialogBlur,
-                ),
-                child: Container(color: Colors.transparent),
-              ),
-
-            Center(
-              child: Container(
-                width: 200,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: colors.surface.withOpacity(theme.profileDialogOpacity),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: colors.outline.withOpacity(0.2)),
-                ),
-                child: Center(
-                  child: Icon(Icons.person, color: colors.onSurface, size: 32),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PanelsPreview extends StatelessWidget {
-  const _PanelsPreview();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = context.watch<ThemeProvider>();
-    final colors = Theme.of(context).colorScheme;
-
-    return Container(
-      height: 100,
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Stack(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.grey.shade300, Colors.grey.shade600],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
-            ),
-            Column(
-              children: [
-                if (theme.useGlassPanels)
-                  ClipRect(
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(
-                        sigmaX: theme.topBarBlur,
-                        sigmaY: theme.topBarBlur,
-                      ),
-                      child: Container(
-                        height: 30,
-                        color: colors.surface.withOpacity(theme.topBarOpacity),
-                        child: Row(
-                          children: [
-                            const SizedBox(width: 12),
-                            CircleAvatar(
-                              backgroundColor: colors.primaryContainer,
-                              radius: 8,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Container(
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: colors.primaryContainer,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 40),
-                          ],
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  Container(
-                    height: 30,
-                    color: colors.surface,
-                    child: Row(
-                      children: [
-                        const SizedBox(width: 12),
-                        CircleAvatar(
-                          backgroundColor: colors.primaryContainer,
-                          radius: 8,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Container(
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: colors.primaryContainer,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 40),
-                      ],
-                    ),
-                  ),
-                const Spacer(),
-
-                if (theme.useGlassPanels)
-                  ClipRect(
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(
-                        sigmaX: theme.bottomBarBlur,
-                        sigmaY: theme.bottomBarBlur,
-                      ),
-                      child: Container(
-                        height: 30,
-                        color: colors.surface.withOpacity(
-                          theme.bottomBarOpacity,
-                        ),
-                        child: Row(
-                          children: [
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Container(
-                                height: 20,
-                                decoration: BoxDecoration(
-                                  color: colors.surfaceContainerHighest,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Icon(Icons.send, color: colors.primary, size: 20),
-                            const SizedBox(width: 12),
-                          ],
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  Container(
-                    height: 30,
-                    color: colors.surface,
-                    child: Row(
-                      children: [
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Container(
-                            height: 20,
-                            decoration: BoxDecoration(
-                              color: colors.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Icon(Icons.send, color: colors.primary, size: 20),
-                        const SizedBox(width: 12),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

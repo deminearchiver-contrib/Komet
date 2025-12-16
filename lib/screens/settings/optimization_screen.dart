@@ -46,6 +46,25 @@ class OptimizationScreen extends StatelessWidget {
                   value: theme.showFpsOverlay,
                   onChanged: (value) => theme.setShowFpsOverlay(value),
                 ),
+                const SizedBox(height: 8),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.timeline),
+                  title: const Text("Ограничение FPS"),
+                  subtitle: Text(
+                    "Максимум кадров в секунду для анимаций: ${theme.maxFrameRate}",
+                  ),
+                ),
+                Slider(
+                  value: theme.maxFrameRate.toDouble(),
+                  min: 30,
+                  max: 120,
+                  divisions: 9,
+                  label: "${theme.maxFrameRate} FPS",
+                  onChanged: (value) {
+                    theme.setMaxFrameRate(value.round());
+                  },
+                ),
                 const SizedBox(height: 16),
                 const Divider(),
                 const SizedBox(height: 16),
@@ -87,6 +106,25 @@ class OptimizationScreen extends StatelessWidget {
                 subtitle: const Text("Показывать FPS справа сверху"),
                 value: theme.showFpsOverlay,
                 onChanged: (value) => theme.setShowFpsOverlay(value),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.timeline),
+                title: const Text("Ограничение FPS"),
+                subtitle: Text(
+                  "Максимум кадров в секунду для анимаций: ${theme.maxFrameRate}",
+                ),
+              ),
+              Slider(
+                value: theme.maxFrameRate.toDouble(),
+                min: 30,
+                max: 120,
+                divisions: 9,
+                label: "${theme.maxFrameRate} FPS",
+                onChanged: (value) {
+                  theme.setMaxFrameRate(value.round());
+                },
               ),
               const SizedBox(height: 16),
               const Divider(),

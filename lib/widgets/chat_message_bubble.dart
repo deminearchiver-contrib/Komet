@@ -27,338 +27,22 @@ import 'package:just_audio/just_audio.dart';
 import 'package:gwid/services/cache_service.dart';
 import 'package:video_player/video_player.dart';
 import 'package:gwid/services/music_player_service.dart';
-import 'package:gwid/widgets/bottom_sheet_music_player.dart';
 import 'package:platform_info/platform_info.dart';
 import 'package:gwid/utils/download_path_helper.dart';
 import 'package:gwid/services/chat_encryption_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:typed_data';
-
-bool _currentIsDark = false;
+import 'package:gwid/widgets/message_bubble/models/message_read_status.dart';
+import 'package:gwid/widgets/message_bubble/models/komet_segment.dart';
+import 'package:gwid/widgets/message_bubble/services/file_download_service.dart';
+import 'package:gwid/widgets/message_bubble/widgets/komet_animated_texts.dart';
+import 'package:gwid/widgets/message_bubble/widgets/media/audio_player_widget.dart';
+import 'package:gwid/widgets/message_bubble/utils/user_color_helper.dart';
+import 'package:gwid/widgets/message_bubble/widgets/dialogs/custom_emoji_dialog.dart';
 
 bool isMobile =
     Platform.instance.operatingSystem.iOS ||
     Platform.instance.operatingSystem.android;
-
-enum MessageReadStatus { sending, sent, read }
-
-class FileDownloadProgressService {
-  static final FileDownloadProgressService _instance =
-      FileDownloadProgressService._internal();
-  factory FileDownloadProgressService() => _instance;
-  FileDownloadProgressService._internal();
-
-  final Map<String, ValueNotifier<double>> _progressNotifiers = {};
-  bool _initialized = false;
-
-  Future<void> _ensureInitialized() async {
-    if (_initialized) return;
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-
-      final fileIdMap = prefs.getStringList('file_id_to_path_map') ?? [];
-
-      for (final mapping in fileIdMap) {
-        final parts = mapping.split(':');
-        if (parts.length >= 2) {
-          final fileId = parts[0];
-          final filePath = parts.skip(1).join(':');
-
-          final file = io.File(filePath);
-          if (await file.exists()) {
-            if (!_progressNotifiers.containsKey(fileId)) {
-              _progressNotifiers[fileId] = ValueNotifier<double>(1.0);
-            } else {
-              _progressNotifiers[fileId]!.value = 1.0;
-            }
-          }
-        }
-      }
-
-      _initialized = true;
-    } catch (e) {
-      print('Error initializing download status: $e');
-      _initialized = true;
-    }
-  }
-
-  ValueNotifier<double> getProgress(String fileId) {
-    _ensureInitialized();
-    if (!_progressNotifiers.containsKey(fileId)) {
-      _progressNotifiers[fileId] = ValueNotifier<double>(-1);
-    }
-    return _progressNotifiers[fileId]!;
-  }
-
-  void updateProgress(String fileId, double progress) {
-    if (!_progressNotifiers.containsKey(fileId)) {
-      _progressNotifiers[fileId] = ValueNotifier<double>(progress);
-    } else {
-      _progressNotifiers[fileId]!.value = progress;
-    }
-  }
-
-  void clearProgress(String fileId) {
-    _progressNotifiers.remove(fileId);
-  }
-}
-
-Color _getUserColor(int userId, BuildContext context) {
-  final bool isDark = Theme.of(context).brightness == Brightness.dark;
-
-  if (isDark != _currentIsDark) {
-    _currentIsDark = isDark;
-  }
-
-  final List<Color> materialYouColors = isDark
-      ? [
-          const Color(0xFFEF5350),
-          const Color(0xFFEC407A),
-          const Color(0xFFAB47BC),
-          const Color(0xFF7E57C2),
-          const Color(0xFF5C6BC0),
-          const Color(0xFF42A5F5),
-          const Color(0xFF29B6F6),
-          const Color(0xFF26C6DA),
-          const Color(0xFF26A69A),
-          const Color(0xFF66BB6A),
-          const Color(0xFF9CCC65),
-          const Color(0xFFD4E157),
-          const Color(0xFFFFEB3B),
-          const Color(0xFFFFCA28),
-          const Color(0xFFFFA726),
-          const Color(0xFFFF7043),
-          const Color(0xFF8D6E63),
-          const Color(0xFF78909C),
-          const Color(0xFFB39DDB),
-          const Color(0xFF80CBC4),
-          const Color(0xFFC5E1A5),
-        ]
-      : [
-          const Color(0xFFF44336),
-          const Color(0xFFE91E63),
-          const Color(0xFF9C27B0),
-          const Color(0xFF673AB7),
-          const Color(0xFF3F51B5),
-          const Color(0xFF2196F3),
-          const Color(0xFF03A9F4),
-          const Color(0xFF00BCD4),
-          const Color(0xFF009688),
-          const Color(0xFF4CAF50),
-          const Color(0xFF8BC34A),
-          const Color(0xFFCDDC39),
-          const Color(0xFFFFEE58),
-          const Color(0xFFFFC107),
-          const Color(0xFFFF9800),
-          const Color(0xFFFF5722),
-          const Color(0xFF795548),
-          const Color(0xFF607D8B),
-          const Color(0xFF9575CD),
-          const Color(0xFF4DB6AC),
-          const Color(0xFFAED581),
-        ];
-
-  final colorIndex = userId % materialYouColors.length;
-  final color = materialYouColors[colorIndex];
-
-  return color;
-}
-
-class _KometColoredSegment {
-  final String text;
-  final Color? color;
-
-  _KometColoredSegment(this.text, this.color);
-}
-
-enum _KometSegmentType { normal, colored, galaxy, pulse }
-
-class _KometSegment {
-  final String text;
-  final _KometSegmentType type;
-  final Color? color;
-
-  _KometSegment(this.text, this.type, {this.color});
-}
-
-class _GalaxyAnimatedText extends StatefulWidget {
-  final String text;
-
-  const _GalaxyAnimatedText({required this.text});
-
-  @override
-  State<_GalaxyAnimatedText> createState() => _GalaxyAnimatedTextState();
-}
-
-class _GalaxyAnimatedTextState extends State<_GalaxyAnimatedText>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final t = _controller.value;
-        final color = Color.lerp(Colors.black, Colors.white, t)!;
-
-        return ShaderMask(
-          shaderCallback: (Rect bounds) {
-            return LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [color, Color.lerp(Colors.white, Colors.black, t)!],
-            ).createShader(bounds);
-          },
-          blendMode: BlendMode.srcIn,
-          child: Text(
-            widget.text,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _PulseAnimatedText extends StatefulWidget {
-  final String text;
-
-  const _PulseAnimatedText({required this.text});
-
-  @override
-  State<_PulseAnimatedText> createState() => _PulseAnimatedTextState();
-}
-
-class _PulseAnimatedTextState extends State<_PulseAnimatedText>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  Color? _pulseColor;
-
-  @override
-  void initState() {
-    super.initState();
-    _parseColor();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    )..repeat(reverse: true);
-  }
-
-  void _parseColor() {
-    final text = widget.text;
-    const prefix = "komet.cosmetic.pulse#";
-    if (!text.startsWith(prefix)) {
-      _pulseColor = Colors.red;
-      return;
-    }
-
-    final afterHash = text.substring(prefix.length);
-    final quoteIndex = afterHash.indexOf("'");
-    if (quoteIndex == -1) {
-      _pulseColor = Colors.red;
-      return;
-    }
-
-    final hexStr = afterHash.substring(0, quoteIndex).trim();
-    _pulseColor = _parseHexColor(hexStr);
-  }
-
-  Color _parseHexColor(String hex) {
-    String hexClean = hex.trim();
-    if (hexClean.startsWith('#')) {
-      hexClean = hexClean.substring(1);
-    }
-
-    if (hexClean.isEmpty) {
-      return Colors.red;
-    }
-
-    if (hexClean.length == 3) {
-      hexClean =
-          '${hexClean[0]}${hexClean[0]}${hexClean[1]}${hexClean[1]}${hexClean[2]}${hexClean[2]}';
-    } else if (hexClean.length == 4) {
-      hexClean =
-          '${hexClean[0]}${hexClean[0]}${hexClean[1]}${hexClean[1]}${hexClean[2]}${hexClean[2]}${hexClean[3]}${hexClean[3]}';
-    } else if (hexClean.length == 5) {
-      hexClean = '0$hexClean';
-    } else if (hexClean.length < 6) {
-      hexClean = hexClean.padRight(6, '0');
-    } else if (hexClean.length > 6) {
-      hexClean = hexClean.substring(0, 6);
-    }
-
-    try {
-      return Color(int.parse('FF$hexClean', radix: 16));
-    } catch (e) {
-      return Colors.red;
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final text = widget.text;
-    const prefix = "komet.cosmetic.pulse#";
-    if (!text.startsWith(prefix) || !text.endsWith("'")) {
-      return Text(text);
-    }
-
-    final afterHash = text.substring(prefix.length);
-    final quoteIndex = afterHash.indexOf("'");
-    if (quoteIndex == -1 || quoteIndex + 1 >= afterHash.length) {
-      return Text(text);
-    }
-
-    final textStart = quoteIndex + 1;
-    final secondQuote = afterHash.indexOf("'", textStart);
-    if (secondQuote == -1) {
-      return Text(text);
-    }
-
-    final messageText = afterHash.substring(textStart, secondQuote);
-    final baseColor = _pulseColor ?? Colors.red;
-
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final t = _controller.value;
-        final opacity = 0.5 + (t * 0.5);
-        final color = baseColor.withOpacity(opacity);
-
-        return Text(
-          messageText,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: color,
-          ),
-        );
-      },
-    );
-  }
-}
 
 class ChatMessageBubble extends StatelessWidget {
   final Message message;
@@ -899,7 +583,7 @@ class ChatMessageBubble extends StatelessWidget {
 
     Color replyAccentColor;
     if (useAutoReplyColor) {
-      replyAccentColor = _getUserColor(replySenderId ?? 0, context);
+      replyAccentColor = getUserColor(replySenderId ?? 0, context);
     } else {
       replyAccentColor =
           customReplyColor ??
@@ -1424,7 +1108,7 @@ class ChatMessageBubble extends StatelessWidget {
                           senderName!,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: _getUserColor(
+                            color: getUserColor(
                               message.senderId,
                               context,
                             ).withOpacity(0.8),
@@ -1513,6 +1197,18 @@ class ChatMessageBubble extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<bool> _isMusicTrackRegistered(int fileId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final musicMetadataJson = prefs.getString('music_metadata') ?? '{}';
+      final musicMetadata =
+          jsonDecode(musicMetadataJson) as Map<String, dynamic>;
+      return musicMetadata.containsKey(fileId.toString());
+    } catch (_) {
+      return false;
+    }
   }
 
   Widget _buildStickerOnlyMessage(BuildContext context) {
@@ -1685,7 +1381,7 @@ class ChatMessageBubble extends StatelessWidget {
     required bool isUltraOptimized,
     required int senderId,
   }) {
-    final nameColor = _getUserColor(senderId, context).withOpacity(0.8);
+    final nameColor = getUserColor(senderId, context).withOpacity(0.8);
     final canReply = onReply != null && !isChannel;
     final screenWidth = MediaQuery.of(context).size.width;
     final hasSpaceForReply = screenWidth > 280;
@@ -2813,9 +2509,6 @@ class ChatMessageBubble extends StatelessWidget {
               jsonDecode(musicMetadataJson) as Map<String, dynamic>;
           musicMetadata[fileIdString ?? ''] = track.toJson();
           await prefs.setString('music_metadata', jsonEncode(musicMetadata));
-
-          final musicPlayer = MusicPlayerService();
-          await musicPlayer.playTrack(track);
         }
       },
       child: Container(
@@ -2965,7 +2658,7 @@ class ChatMessageBubble extends StatelessWidget {
                           }
                         },
                       )
-                    else
+                    else ...[
                       Row(
                         children: [
                           if (durationText.isNotEmpty) ...[
@@ -2995,6 +2688,30 @@ class ChatMessageBubble extends StatelessWidget {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 4),
+                      FutureBuilder<bool>(
+                        future: fileId != null
+                            ? _isMusicTrackRegistered(fileId)
+                            : Future.value(false),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const SizedBox.shrink();
+                          }
+                          if (snapshot.data == true) {
+                            return Text(
+                              'прослушать в \"Музыка\"',
+                              style: TextStyle(
+                                color: Colors.green.shade400,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -3084,17 +2801,9 @@ class ChatMessageBubble extends StatelessWidget {
                             'music_metadata',
                             jsonEncode(musicMetadata),
                           );
-
-                          final musicPlayer = MusicPlayerService();
-                          await musicPlayer.playTrack(track);
-
-                          BottomSheetMusicPlayer.isExpandedNotifier.value =
-                              true;
-                          BottomSheetMusicPlayer.isFullscreenNotifier.value =
-                              true;
                         }
                       },
-                      icon: const Icon(Icons.play_arrow),
+                      icon: const Icon(Icons.download_outlined),
                       style: IconButton.styleFrom(
                         backgroundColor: textColor.withOpacity(0.1),
                         foregroundColor: textColor,
@@ -3114,7 +2823,7 @@ class ChatMessageBubble extends StatelessWidget {
                       );
                     }
                   },
-                  icon: const Icon(Icons.play_arrow),
+                  icon: const Icon(Icons.download_outlined),
                   style: IconButton.styleFrom(
                     backgroundColor: textColor.withOpacity(0.1),
                     foregroundColor: textColor,
@@ -3227,7 +2936,7 @@ class ChatMessageBubble extends StatelessWidget {
     final seconds = durationSeconds % 60;
     final durationText = '$minutes:${seconds.toString().padLeft(2, '0')}';
 
-    return _AudioPlayerWidget(
+    return AudioPlayerWidget(
       url: url ?? '',
       duration: duration,
       durationText: durationText,
@@ -4103,7 +3812,7 @@ class ChatMessageBubble extends StatelessWidget {
                 senderName!,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: _getUserColor(
+                  color: getUserColor(
                     message.senderId,
                     context,
                   ).withOpacity(0.8),
@@ -4375,8 +4084,8 @@ class ChatMessageBubble extends StatelessWidget {
     ];
   }
 
-  List<_KometSegment> _parseMixedMessageSegments(String text) {
-    final segments = <_KometSegment>[];
+  List<KometSegment> _parseMixedMessageSegments(String text) {
+    final segments = <KometSegment>[];
     int index = 0;
 
     while (index < text.length) {
@@ -4402,7 +4111,7 @@ class ChatMessageBubble extends StatelessWidget {
       if (markerType == null) {
         if (index < text.length) {
           segments.add(
-            _KometSegment(text.substring(index), _KometSegmentType.normal),
+            KometSegment(text.substring(index), KometSegmentType.normal),
           );
         }
         break;
@@ -4410,9 +4119,9 @@ class ChatMessageBubble extends StatelessWidget {
 
       if (nextMarker > index) {
         segments.add(
-          _KometSegment(
+          KometSegment(
             text.substring(index, nextMarker),
-            _KometSegmentType.normal,
+            KometSegmentType.normal,
           ),
         );
       }
@@ -4429,7 +4138,7 @@ class ChatMessageBubble extends StatelessWidget {
             final segmentText = afterHash.substring(textStart, secondQuote);
             final color = _parseKometHexColor(hexStr, null);
             segments.add(
-              _KometSegment(segmentText, _KometSegmentType.pulse, color: color),
+              KometSegment(segmentText, KometSegmentType.pulse, color: color),
             );
             index = nextMarker + prefix.length + secondQuote + 2;
             continue;
@@ -4439,9 +4148,9 @@ class ChatMessageBubble extends StatelessWidget {
             ? nextMarker + prefix.length + 10
             : text.length;
         segments.add(
-          _KometSegment(
+          KometSegment(
             text.substring(nextMarker, safeEnd),
-            _KometSegmentType.normal,
+            KometSegmentType.normal,
           ),
         );
         index = safeEnd;
@@ -4451,15 +4160,15 @@ class ChatMessageBubble extends StatelessWidget {
         final quoteIndex = text.indexOf("'", textStart);
         if (quoteIndex != -1) {
           final segmentText = text.substring(textStart, quoteIndex);
-          segments.add(_KometSegment(segmentText, _KometSegmentType.galaxy));
+          segments.add(KometSegment(segmentText, KometSegmentType.galaxy));
           index = quoteIndex + 1;
           continue;
         }
 
         segments.add(
-          _KometSegment(
+          KometSegment(
             text.substring(nextMarker, textStart + 10),
-            _KometSegmentType.normal,
+            KometSegmentType.normal,
           ),
         );
         index = textStart + 10;
@@ -4475,9 +4184,9 @@ class ChatMessageBubble extends StatelessWidget {
             final segmentText = text.substring(textStart, secondQuote);
             final color = _parseKometHexColor(colorStr, null);
             segments.add(
-              _KometSegment(
+              KometSegment(
                 segmentText,
-                _KometSegmentType.colored,
+                KometSegmentType.colored,
                 color: color,
               ),
             );
@@ -4487,9 +4196,9 @@ class ChatMessageBubble extends StatelessWidget {
         }
 
         segments.add(
-          _KometSegment(
+          KometSegment(
             text.substring(nextMarker, colorStart + 10),
-            _KometSegmentType.normal,
+            KometSegmentType.normal,
           ),
         );
         index = colorStart + 10;
@@ -4512,9 +4221,9 @@ class ChatMessageBubble extends StatelessWidget {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: segments.map((seg) {
         switch (seg.type) {
-          case _KometSegmentType.normal:
-          case _KometSegmentType.colored:
-            final baseForSeg = seg.type == _KometSegmentType.colored
+          case KometSegmentType.normal:
+          case KometSegmentType.colored:
+            final baseForSeg = seg.type == KometSegmentType.colored
                 ? baseStyle.copyWith(color: seg.color)
                 : baseStyle;
 
@@ -4529,40 +4238,19 @@ class ChatMessageBubble extends StatelessWidget {
             } else {
               return _buildFormattedRichText(seg.text, baseForSeg, elements);
             }
-          case _KometSegmentType.galaxy:
-            return _GalaxyAnimatedText(text: seg.text);
-          case _KometSegmentType.pulse:
+          case KometSegmentType.galaxy:
+            return GalaxyAnimatedText(text: seg.text);
+          case KometSegmentType.pulse:
             final hexStr = seg.color!.value
                 .toRadixString(16)
                 .padLeft(8, '0')
                 .substring(2)
                 .toUpperCase();
-            return _PulseAnimatedText(
+            return PulseAnimatedText(
               text: "komet.cosmetic.pulse#$hexStr'${seg.text}'",
             );
         }
       }).toList(),
-    );
-  }
-
-  Widget _buildKometColorRichText(String rawText, TextStyle baseStyle) {
-    final segments = _parseKometColorSegments(rawText, baseStyle.color);
-
-    return Text.rich(
-      TextSpan(
-        style: baseStyle,
-        children: segments
-            .map(
-              (seg) => TextSpan(
-                text: seg.text,
-                style: seg.color != null
-                    ? baseStyle.copyWith(color: seg.color)
-                    : baseStyle,
-              ),
-            )
-            .toList(),
-      ),
-      textAlign: TextAlign.left,
     );
   }
 
@@ -4635,50 +4323,6 @@ class ChatMessageBubble extends StatelessWidget {
       TextSpan(children: spans, style: baseStyle),
       textAlign: TextAlign.left,
     );
-  }
-
-  List<_KometColoredSegment> _parseKometColorSegments(
-    String text,
-    Color? fallbackColor,
-  ) {
-    const marker = 'komet.color_';
-    final segments = <_KometColoredSegment>[];
-
-    int index = 0;
-    while (index < text.length) {
-      final start = text.indexOf(marker, index);
-      if (start == -1) {
-        segments.add(_KometColoredSegment(text.substring(index), null));
-        break;
-      }
-
-      if (start > index) {
-        segments.add(_KometColoredSegment(text.substring(index, start), null));
-      }
-
-      final colorStart = start + marker.length;
-      final firstQuote = text.indexOf("'", colorStart);
-      if (firstQuote == -1) {
-        segments.add(_KometColoredSegment(text.substring(start), null));
-        break;
-      }
-
-      final colorStr = text.substring(colorStart, firstQuote);
-      final textStart = firstQuote + 1;
-      final secondQuote = text.indexOf("'", textStart);
-      if (secondQuote == -1) {
-        segments.add(_KometColoredSegment(text.substring(start), null));
-        break;
-      }
-
-      final segmentText = text.substring(textStart, secondQuote);
-      final color = _parseKometHexColor(colorStr, fallbackColor);
-
-      segments.add(_KometColoredSegment(segmentText, color));
-      index = secondQuote + 1;
-    }
-
-    return segments;
   }
 
   Color _parseKometHexColor(String raw, Color? fallbackColor) {
@@ -4797,7 +4441,7 @@ class ChatMessageBubble extends StatelessWidget {
               userId: message.senderId,
               size: 32,
               fallbackText: contactName,
-              backgroundColor: _getUserColor(message.senderId, context),
+              backgroundColor: getUserColor(message.senderId, context),
               textColor: Colors.white,
             ),
           ),
@@ -5257,7 +4901,7 @@ class _CustomEmojiButtonState extends State<_CustomEmojiButton>
   void _showCustomEmojiDialog() {
     showDialog(
       context: context,
-      builder: (context) => _CustomEmojiDialog(
+      builder: (context) => CustomEmojiDialog(
         onEmojiSelected: (emoji) {
           widget.onCustomEmoji(emoji);
         },
@@ -5294,131 +4938,6 @@ class _CustomEmojiButtonState extends State<_CustomEmojiButton>
   }
 }
 
-class _CustomEmojiDialog extends StatefulWidget {
-  final Function(String) onEmojiSelected;
-
-  const _CustomEmojiDialog({required this.onEmojiSelected});
-
-  @override
-  State<_CustomEmojiDialog> createState() => _CustomEmojiDialogState();
-}
-
-class _CustomEmojiDialogState extends State<_CustomEmojiDialog> {
-  final TextEditingController _controller = TextEditingController();
-  String _selectedEmoji = '';
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Row(
-        children: [
-          Icon(
-            Icons.emoji_emotions,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(width: 8),
-          const Text('Введите эмодзи'),
-        ],
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
-              ),
-            ),
-            child: TextField(
-              controller: _controller,
-              maxLength: 1,
-              decoration: InputDecoration(
-                hintText: 'Введите эмодзи...',
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.all(16),
-                counterText: '',
-                hintStyle: TextStyle(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withOpacity(0.6),
-                ),
-              ),
-              onChanged: (value) {
-                setState(() {
-                  _selectedEmoji = value;
-                });
-              },
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 24),
-            ),
-          ),
-          const SizedBox(height: 20),
-          if (_selectedEmoji.isNotEmpty) ...[
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Theme.of(context).colorScheme.primaryContainer,
-                    Theme.of(
-                      context,
-                    ).colorScheme.primaryContainer.withOpacity(0.7),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-                  width: 2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Text(_selectedEmoji, style: const TextStyle(fontSize: 48)),
-            ),
-            const SizedBox(height: 20),
-          ],
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Отмена'),
-        ),
-        FilledButton.icon(
-          onPressed: _selectedEmoji.isNotEmpty
-              ? () {
-                  widget.onEmojiSelected(_selectedEmoji);
-                  Navigator.of(context).pop();
-                }
-              : null,
-          icon: const Icon(Icons.add),
-          label: const Text('Добавить'),
-          style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            foregroundColor: Theme.of(context).colorScheme.onPrimary,
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 class _MessageContextMenu extends StatefulWidget {
   final Message message;

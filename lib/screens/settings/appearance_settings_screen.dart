@@ -47,31 +47,7 @@ class AppearanceSettingsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _OutlinedSection(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSectionTitle("Производительность", colors),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  secondary: const Icon(Icons.speed_outlined),
-                  title: const Text("Оптимизация чатов"),
-                  subtitle: const Text("Улучшить производительность в чатах"),
-                  value: theme.optimizeChats,
-                  onChanged: (value) => theme.setOptimizeChats(value),
-                ),
-
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  secondary: const Icon(Icons.flash_on_outlined),
-                  title: const Text("Ультра оптимизация"),
-                  subtitle: const Text("Максимальная производительность"),
-                  value: theme.ultraOptimizeChats,
-                  onChanged: (value) => theme.setUltraOptimizeChats(value),
-                ),
-              ],
-            ),
-          ),
+          // настройки оптимизации доступны в отдельном экране \"Оптимизация\".
         ],
       ),
     );
@@ -105,22 +81,6 @@ class AppearanceSettingsScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        _OutlinedSection(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSectionTitle("Производительность", colors),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                secondary: const Icon(Icons.speed_outlined),
-                title: const Text("Ультра-оптимизация чатов"),
-                subtitle: const Text("Максимальная производительность"),
-                value: theme.ultraOptimizeChats,
-                onChanged: (value) => theme.setUltraOptimizeChats(value),
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -221,22 +181,6 @@ class AppearanceSettingsScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        _OutlinedSection(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildSectionTitle("Производительность", colors),
-                              SwitchListTile(
-                                contentPadding: EdgeInsets.zero,
-                                secondary: const Icon(Icons.speed_outlined),
-                                title: const Text("Ультра-оптимизация чатов"),
-                                subtitle: const Text("Максимальная производительность"),
-                                value: theme.ultraOptimizeChats,
-                                onChanged: (value) => theme.setUltraOptimizeChats(value),
-                              ),
-                            ],
-                          ),
-                        ),
                       ],
                     ),
                   ),

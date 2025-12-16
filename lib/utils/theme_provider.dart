@@ -676,7 +676,7 @@ class ThemeProvider with ChangeNotifier {
   bool _highQualityPhotos = true;
   bool _optimization = false;
   bool _showFpsOverlay = false;
-  
+  int _maxFrameRate = 60;
   
   CustomThemePreset? _savedThemeBeforeOptimization;
 
@@ -813,6 +813,7 @@ class ThemeProvider with ChangeNotifier {
   bool get blockBypass => _blockBypass;
   bool get optimization => _optimization;
   bool get showFpsOverlay => _showFpsOverlay;
+  int get maxFrameRate => _maxFrameRate;
 
   List<CustomThemePreset> get savedThemes => _savedThemes;
   CustomThemePreset get activeTheme => _activeTheme;
@@ -878,6 +879,7 @@ class ThemeProvider with ChangeNotifier {
     _blockBypass = prefs.getBool('block_bypass') ?? false;
     _optimization = prefs.getBool('optimization') ?? false;
     _showFpsOverlay = prefs.getBool('show_fps_overlay') ?? false;
+    _maxFrameRate = prefs.getInt('max_frame_rate') ?? 60;
 
     await loadChatSpecificWallpapers();
 
@@ -1466,6 +1468,13 @@ class ThemeProvider with ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('show_fps_overlay', _showFpsOverlay);
+  }
+
+  Future<void> setMaxFrameRate(int value) async {
+    _maxFrameRate = value.clamp(30, 120);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('max_frame_rate', _maxFrameRate);
   }
 
   Future<void> setOptimization(bool value) async {
