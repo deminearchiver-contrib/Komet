@@ -12,8 +12,6 @@ import 'package:gwid/utils/device_presets.dart';
 
 enum SpoofingMethod { partial, full }
 
-enum PresetCategory { web, device }
-
 class SessionSpoofingScreen extends StatefulWidget {
   const SessionSpoofingScreen({super.key});
 
@@ -33,9 +31,8 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
   final _deviceIdController = TextEditingController();
   final _appVersionController = TextEditingController();
 
-  String _selectedDeviceType = 'WEB';
+  String _selectedDeviceType = 'ANDROID';
   SpoofingMethod _selectedMethod = SpoofingMethod.partial;
-  PresetCategory _selectedCategory = PresetCategory.web;
   bool _isCheckingVersion = false;
   bool _isLoading = true;
 
@@ -60,17 +57,13 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
       _deviceIdController.text = prefs.getString('spoof_deviceid') ?? '';
       _appVersionController.text =
           prefs.getString('spoof_appversion') ?? '25.12.1';
-      _selectedDeviceType = prefs.getString('spoof_devicetype') ?? 'WEB';
 
-      if (_selectedDeviceType == 'WEB') {
-        _selectedCategory = PresetCategory.web;
-      } else {
-        _selectedCategory = PresetCategory.device;
+      String savedType = prefs.getString('spoof_devicetype') ?? 'ANDROID';
+      if (savedType == 'WEB') {
+        savedType = 'ANDROID';
       }
+      _selectedDeviceType = savedType;
     } else {
-      setState(() {
-        _selectedCategory = PresetCategory.web;
-      });
       await _applyGeneratedData();
     }
 
@@ -114,34 +107,23 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
           'Mozilla/5.0 (iPhone; CPU iPhone OS ${iosInfo.systemVersion.replaceAll('.', '_')} like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
       _selectedDeviceType = 'IOS';
     } else {
-      setState(() => _selectedCategory = PresetCategory.device);
       await _applyGeneratedData();
     }
 
     setState(() {
-      _selectedCategory = PresetCategory.device;
       _isLoading = false;
     });
   }
 
   Future<void> _applyGeneratedData() async {
-    final List<DevicePreset> filteredPresets;
-    if (_selectedCategory == PresetCategory.web) {
-      filteredPresets = devicePresets
-          .where((p) => p.deviceType == 'WEB')
-          .toList();
-    } else {
-      filteredPresets = devicePresets
-          .where((p) => p.deviceType != 'WEB')
-          .toList();
-    }
+    final filteredPresets = devicePresets
+        .where((p) => p.deviceType != 'WEB')
+        .toList();
 
     if (filteredPresets.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Нет доступных пресетов для этой категории.'),
-          ),
+          const SnackBar(content: Text('Нет доступных пресетов устройств.')),
         );
       }
       return;
@@ -160,10 +142,9 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
       _appVersionController.text = '25.12.1';
       _deviceIdController.text = _uuid.v4();
 
-      if (_selectedMethod == SpoofingMethod.partial) {
-        _selectedDeviceType = 'WEB';
-      } else {
-        _selectedDeviceType = preset.deviceType;
+      _selectedDeviceType = preset.deviceType;
+
+      if (_selectedMethod == SpoofingMethod.full) {
         _timezoneController.text = preset.timezone;
         _localeController.text = preset.locale;
       }
@@ -201,7 +182,7 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
       'timezone': prefs.getString('spoof_timezone') ?? '',
       'locale': prefs.getString('spoof_locale') ?? '',
       'device_id': prefs.getString('spoof_deviceid') ?? '',
-      'device_type': prefs.getString('spoof_devicetype') ?? 'WEB',
+      'device_type': prefs.getString('spoof_devicetype') ?? 'ANDROID',
     };
 
     final newValues = {
@@ -326,7 +307,7 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString()), 
+            content: Text(e.toString()),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
@@ -368,8 +349,6 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
                   _buildInfoCard(),
                   const SizedBox(height: 16),
                   _buildSpoofingMethodCard(),
-                  const SizedBox(height: 16),
-                  _buildPresetTypeCard(),
                   const SizedBox(height: 24),
                   _buildMainDataCard(),
                   const SizedBox(height: 16),
@@ -496,43 +475,6 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
     );
   }
 
-  Widget _buildPresetTypeCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Text(
-              "Тип пресетов для генерации",
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 12),
-            SegmentedButton<PresetCategory>(
-              style: SegmentedButton.styleFrom(shape: const StadiumBorder()),
-              segments: const <ButtonSegment<PresetCategory>>[
-                ButtonSegment(
-                  value: PresetCategory.web,
-                  label: Text('Веб'),
-                  icon: Icon(Icons.web_outlined),
-                ),
-                ButtonSegment(
-                  value: PresetCategory.device,
-                  label: Text('Устройства'),
-                  icon: Icon(Icons.devices_outlined),
-                ),
-              ],
-              selected: {_selectedCategory},
-              onSelectionChanged: (newSelection) {
-                setState(() => _selectedCategory = newSelection.first);
-                _applyGeneratedData();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildSectionHeader(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0, top: 8.0),
@@ -649,14 +591,13 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
                         : IconButton(
                             icon: const Icon(Icons.cloud_sync_outlined),
                             tooltip: 'Проверить последнюю версию',
-                            onPressed:
-                                _handleVersionCheck, 
+                            onPressed: _handleVersionCheck,
                           ),
                   ),
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              initialValue: _selectedDeviceType,
+              value: _selectedDeviceType,
               decoration: _inputDecoration(
                 'Тип устройства',
                 Icons.devices_other_outlined,
@@ -665,7 +606,6 @@ class _SessionSpoofingScreenState extends State<SessionSpoofingScreen> {
                 DropdownMenuItem(value: 'ANDROID', child: Text('ANDROID')),
                 DropdownMenuItem(value: 'IOS', child: Text('IOS')),
                 DropdownMenuItem(value: 'DESKTOP', child: Text('DESKTOP')),
-                DropdownMenuItem(value: 'WEB', child: Text('WEB')),
               ],
               onChanged: (v) =>
                   v != null ? setState(() => _selectedDeviceType = v) : null,
