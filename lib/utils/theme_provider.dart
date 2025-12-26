@@ -267,7 +267,11 @@ class CustomThemePreset {
   });
 
   factory CustomThemePreset.createDefault() {
-    return CustomThemePreset(id: 'default', name: 'По умолчанию');
+    return CustomThemePreset(
+      id: 'default',
+      name: 'По умолчанию',
+      appTheme: AppTheme.system, // Material You по умолчанию
+    );
   }
 
   CustomThemePreset copyWith({
@@ -507,10 +511,15 @@ class CustomThemePreset {
   }
 
   factory CustomThemePreset.fromJson(Map<String, dynamic> json) {
+    final int appThemeIndex = (json['appTheme'] as int?) ?? AppTheme.system.index;
+    final AppTheme parsedTheme =
+        (appThemeIndex >= 0 && appThemeIndex < AppTheme.values.length)
+            ? AppTheme.values[appThemeIndex]
+            : AppTheme.system;
     return CustomThemePreset(
       id: json['id'] as String,
       name: json['name'] as String,
-      appTheme: AppTheme.values[json['appTheme'] as int? ?? 0],
+      appTheme: parsedTheme,
       accentColor: Color(json['accentColor'] as int? ?? Colors.blue.value),
       useCustomChatWallpaper: json['useCustomChatWallpaper'] as bool? ?? false,
       chatWallpaperType:
@@ -679,8 +688,10 @@ class ThemeProvider with ChangeNotifier {
   int _maxFrameRate = 60;
   
   CustomThemePreset? _savedThemeBeforeOptimization;
+  AppTheme _lastNonSystemTheme = AppTheme.dark;
 
   AppTheme get appTheme => _activeTheme.appTheme;
+  AppTheme get lastNonSystemTheme => _lastNonSystemTheme;
   Color get accentColor => _activeTheme.accentColor;
 
   ThemeMode get themeMode {
@@ -850,6 +861,29 @@ class ThemeProvider with ChangeNotifier {
       orElse: () => _savedThemes.first,
     );
 
+    if (_savedThemes.length == 1 &&
+        _activeTheme.id == 'default' &&
+        _activeTheme.appTheme != AppTheme.system) {
+      _activeTheme = _activeTheme.copyWith(appTheme: AppTheme.system);
+      await _saveActiveTheme();
+    }
+
+    final int storedLastNonSystemIndex =
+        prefs.getInt('last_non_system_theme') ?? AppTheme.dark.index;
+    final AppTheme storedLastNonSystemTheme =
+        (storedLastNonSystemIndex >= 0 &&
+                storedLastNonSystemIndex < AppTheme.values.length)
+            ? AppTheme.values[storedLastNonSystemIndex]
+            : AppTheme.dark;
+    _lastNonSystemTheme = storedLastNonSystemTheme == AppTheme.system
+        ? AppTheme.dark
+        : storedLastNonSystemTheme;
+
+    if (_activeTheme.appTheme != AppTheme.system) {
+      _lastNonSystemTheme = _activeTheme.appTheme;
+      await prefs.setInt('last_non_system_theme', _lastNonSystemTheme.index);
+    }
+
     if (_activeTheme.myBubbleColorLight == null ||
         _activeTheme.theirBubbleColorLight == null ||
         _activeTheme.myBubbleColorDark == null ||
@@ -991,6 +1025,7 @@ class ThemeProvider with ChangeNotifier {
     _activeTheme = _activeTheme.copyWith(appTheme: theme);
 
     if (theme != AppTheme.system) {
+      _lastNonSystemTheme = theme;
       _updateBubbleColorsFromAccent(_activeTheme.accentColor);
       _activeTheme = _activeTheme.copyWith(
         myBubbleColorLight: _myBubbleColorLight,
@@ -1001,7 +1036,23 @@ class ThemeProvider with ChangeNotifier {
     }
 
     notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    if (theme != AppTheme.system) {
+      await prefs.setInt('last_non_system_theme', _lastNonSystemTheme.index);
+    }
     await _saveActiveTheme();
+  }
+
+  Future<void> setMaterialYouEnabled(bool enabled) async {
+    if (enabled) {
+      await setTheme(AppTheme.system);
+      return;
+    }
+
+    final fallback = (_lastNonSystemTheme == AppTheme.system)
+        ? AppTheme.dark
+        : _lastNonSystemTheme;
+    await setTheme(fallback);
   }
 
   Future<void> setAccentColor(Color color) async {

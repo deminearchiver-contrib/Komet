@@ -70,25 +70,18 @@ class _CustomizationScreenState extends State<CustomizationScreen> {
   Widget build(BuildContext context) {
     final theme = context.watch<ThemeProvider>();
     final colors = Theme.of(context).colorScheme;
-    //final bool isSystemTheme = theme.appTheme == AppTheme.system;
+    final bool isMaterialYou = theme.appTheme == AppTheme.system;
     final bool isCurrentlyDark =
         Theme.of(context).brightness == Brightness.dark;
 
-    //if (isSystemTheme) {
-    //  SchedulerBinding.instance.addPostFrameCallback((_) {
-    //    if (mounted) {
-    //      final systemAccentColor = Theme.of(context).colorScheme.primary;
-    //      theme.updateBubbleColorsForSystemTheme(systemAccentColor);
-    //    }
-    //  });
-    //}
-
     final Color? myBubbleColorToShow = isCurrentlyDark
-        ? theme.myBubbleColorDark
-        : theme.myBubbleColorLight;
+        ? (isMaterialYou ? colors.primaryContainer : theme.myBubbleColorDark)
+        : (isMaterialYou ? colors.primaryContainer : theme.myBubbleColorLight);
     final Color? theirBubbleColorToShow = isCurrentlyDark
-        ? theme.theirBubbleColorDark
-        : theme.theirBubbleColorLight;
+        ? (isMaterialYou ? colors.secondaryContainer : theme.theirBubbleColorDark)
+        : (isMaterialYou
+              ? colors.secondaryContainer
+              : theme.theirBubbleColorLight);
 
     final Function(Color?) myBubbleSetter = isCurrentlyDark
         ? theme.setMyBubbleColorDark
@@ -122,27 +115,42 @@ class _CustomizationScreenState extends State<CustomizationScreen> {
             title: "Тема приложения",
             children: [
               const SizedBox(height: 8),
-              AppThemeSelector(
-                selectedTheme: theme.appTheme,
-                onChanged: (appTheme) => theme.setTheme(appTheme),
+              _CustomSettingTile(
+                icon: Icons.auto_awesome_outlined,
+                title: "Material You",
+                subtitle: "Использовать цвета системы (Android 12+)",
+                child: Switch(
+                  value: isMaterialYou,
+                  onChanged: (value) => theme.setMaterialYouEnabled(value),
+                ),
+              ),
+              const SizedBox(height: 12),
+              IgnorePointer(
+                ignoring: isMaterialYou,
+                child: Opacity(
+                  opacity: isMaterialYou ? 0.5 : 1.0,
+                  child: AppThemeSelector(
+                    selectedTheme:
+                        isMaterialYou ? theme.lastNonSystemTheme : theme.appTheme,
+                    onChanged: (appTheme) => theme.setTheme(appTheme),
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
-              //  IgnorePointer(
-              //ignoring: isSystemTheme,
-              // child: Opacity(
-              //  opacity: isSystemTheme ? 0.5 : 1.0,
-              //  child: _ColorPickerTile(
-              //    title: "Акцентный цвет",
-              //  subtitle: isSystemTheme
-              //      ? "Используются цвета системы (Material You)"
-              //     : "Основной цвет интерфейса",
-              //  color: isSystemTheme ? colors.primary : theme.accentColor,
-              //   onColorChanged: (color) => theme.setAccentColor(color),
-              // ),
-              // ),
-              // ),
-              //],
-              //),
+              IgnorePointer(
+                ignoring: isMaterialYou,
+                child: Opacity(
+                  opacity: isMaterialYou ? 0.5 : 1.0,
+                  child: _ColorPickerTile(
+                    title: "Акцентный цвет",
+                    subtitle: isMaterialYou
+                        ? "Используются цвета системы (Material You)"
+                        : "Основной цвет интерфейса",
+                    color: isMaterialYou ? colors.primary : theme.accentColor,
+                    onColorChanged: (color) => theme.setAccentColor(color),
+                  ),
+                ),
+              ),
               const SizedBox(height: 8),
               _ModernSection(
                 title: "Обои чата",
@@ -358,10 +366,10 @@ class _CustomizationScreenState extends State<CustomizationScreen> {
                       _CustomSettingTile(
                         icon: Icons.format_color_fill,
                         title: "Тип отображения",
-                        //                    child: IgnorePointer(
-                        //                      ignoring: isSystemTheme,
-                        //                      child: Opacity(
-                        //                        opacity: isSystemTheme ? 0.5 : 1.0,
+                    child: IgnorePointer(
+                      ignoring: isMaterialYou,
+                      child: Opacity(
+                        opacity: isMaterialYou ? 0.5 : 1.0,
                         child: DropdownButton<MessageBubbleType>(
                           value: theme.messageBubbleType,
                           underline: const SizedBox.shrink(),
@@ -378,16 +386,18 @@ class _CustomizationScreenState extends State<CustomizationScreen> {
                           }).toList(),
                         ),
                       ),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
                   _CustomSettingTile(
                     icon: Icons.palette,
                     title: "Цвет моих сообщений",
-                    //                    child: IgnorePointer(
-                    //                      ignoring: isSystemTheme,
-                    //                      child: Opacity(
-                    //                        opacity: isSystemTheme ? 0.5 : 1.0,
+                child: IgnorePointer(
+                  ignoring: isMaterialYou,
+                  child: Opacity(
+                    opacity: isMaterialYou ? 0.5 : 1.0,
                     child: GestureDetector(
                       onTap: () async {
                         final initial = myBubbleColorToShow ?? myBubbleFallback;
@@ -406,18 +416,18 @@ class _CustomizationScreenState extends State<CustomizationScreen> {
                           border: Border.all(color: Colors.grey),
                         ),
                       ),
+                        ),
+                      ),
                     ),
                   ),
-                  //                  ),
-                  //                  ),
                   const SizedBox(height: 16),
                   _CustomSettingTile(
                     icon: Icons.palette_outlined,
                     title: "Цвет сообщений собеседника",
-                    //                   child: IgnorePointer(
-                    //                   ignoring: isSystemTheme,
-                    //                      child: Opacity(
-                    //                        opacity: isSystemTheme ? 0.5 : 1.0,
+                child: IgnorePointer(
+                  ignoring: isMaterialYou,
+                  child: Opacity(
+                    opacity: isMaterialYou ? 0.5 : 1.0,
                     child: GestureDetector(
                       onTap: () async {
                         final initial =
@@ -437,10 +447,10 @@ class _CustomizationScreenState extends State<CustomizationScreen> {
                           border: Border.all(color: Colors.grey),
                         ),
                       ),
+                        ),
+                      ),
                     ),
                   ),
-                  //                    ),
-                  //                  ),
                   const Divider(height: 24),
                   _CustomSettingTile(
                     icon: Icons.reply,

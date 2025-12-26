@@ -3881,10 +3881,18 @@ class ChatMessageBubble extends StatelessWidget {
     BuildContext context,
   ) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseColor = isMe
-        ? (themeProvider.myBubbleColor ?? const Color(0xFF2b5278))
-        : (themeProvider.theirBubbleColor ??
-              (isDark ? const Color(0xFF182533) : const Color(0xFF464646)));
+    final scheme = Theme.of(context).colorScheme;
+
+    final bool useMaterialYou = themeProvider.appTheme == AppTheme.system;
+
+    final baseColor = useMaterialYou
+        ? (isMe ? scheme.primaryContainer : scheme.secondaryContainer)
+        : (isMe
+              ? (themeProvider.myBubbleColor ?? const Color(0xFF2b5278))
+              : (themeProvider.theirBubbleColor ??
+                    (isDark
+                        ? const Color(0xFF182533)
+                        : const Color(0xFF464646))));
     return baseColor.withOpacity(1.0 - messageOpacity);
   }
 
@@ -3895,12 +3903,16 @@ class ChatMessageBubble extends StatelessWidget {
     BuildContext context,
   ) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
+    final themeProvider = context.read<ThemeProvider>();
 
-    if (isDarkMode) {
-      return Colors.white;
-    } else {
-      return Colors.black;
-    }
+    final bool useMaterialYou = themeProvider.appTheme == AppTheme.system;
+
+    final Color base = useMaterialYou
+        ? (isMe ? scheme.onPrimaryContainer : scheme.onSecondaryContainer)
+        : (isDarkMode ? Colors.white : Colors.black);
+
+    return base.withOpacity(messageTextOpacity.clamp(0.0, 1.0));
   }
 
   List<Widget> _buildMessageContentChildren(
@@ -6834,8 +6846,8 @@ class _AudioPlayerWidget extends StatefulWidget {
   final String url;
   final int duration;
   final String durationText;
-  final String? wave;
-  final int? audioId;
+  final String wave;
+  final int audioId;
   final Color textColor;
   final BorderRadius borderRadius;
   final double messageTextOpacity;
@@ -6844,8 +6856,8 @@ class _AudioPlayerWidget extends StatefulWidget {
     required this.url,
     required this.duration,
     required this.durationText,
-    this.wave,
-    this.audioId,
+    required this.wave,
+    required this.audioId,
     required this.textColor,
     required this.borderRadius,
     required this.messageTextOpacity,
@@ -6870,8 +6882,8 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
     _audioPlayer = AudioPlayer();
     _totalDuration = Duration(milliseconds: widget.duration);
 
-    if (widget.wave != null && widget.wave!.isNotEmpty) {
-      _decodeWaveform(widget.wave!);
+    if (widget.wave.isNotEmpty) {
+      _decodeWaveform(widget.wave);
     }
 
     if (widget.url.isNotEmpty) {
@@ -6946,13 +6958,13 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
       final cacheService = CacheService();
       final hasCached = await cacheService.hasCachedAudioFile(
         widget.url,
-        customKey: widget.audioId?.toString(),
+        customKey: widget.audioId.toString(),
       );
       if (!hasCached) {
         print('Pre-caching audio: ${widget.url}');
         final cachedPath = await cacheService.cacheAudioFile(
           widget.url,
-          customKey: widget.audioId?.toString(),
+          customKey: widget.audioId.toString(),
         );
         if (cachedPath != null) {
           print('Audio pre-cached successfully: $cachedPath');
@@ -7000,7 +7012,7 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
             final cacheService = CacheService();
             var cachedFile = await cacheService.getCachedAudioFile(
               widget.url,
-              customKey: widget.audioId?.toString(),
+              customKey: widget.audioId.toString(),
             );
 
             if (cachedFile != null && await cachedFile.exists()) {
@@ -7010,7 +7022,7 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
               print('Audio not cached, checking if already downloading...');
               final hasCached = await cacheService.hasCachedAudioFile(
                 widget.url,
-                customKey: widget.audioId?.toString(),
+                customKey: widget.audioId.toString(),
               );
 
               if (!hasCached) {
@@ -7021,7 +7033,7 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
                   cacheService
                       .cacheAudioFile(
                         widget.url,
-                        customKey: widget.audioId?.toString(),
+                        customKey: widget.audioId.toString(),
                       )
                       .then((cachedPath) {
                         if (cachedPath != null) {
@@ -7080,7 +7092,7 @@ class _AudioPlayerWidgetState extends State<_AudioPlayerWidget> {
         final cacheService = CacheService();
         var cachedFile = await cacheService.getCachedAudioFile(
           widget.url,
-          customKey: widget.audioId?.toString(),
+          customKey: widget.audioId.toString(),
         );
 
         if (cachedFile != null && await cachedFile.exists()) {

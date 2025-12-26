@@ -91,8 +91,12 @@ class MyApp extends StatelessWidget {
 
     return DynamicColorBuilder(
       builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
-        final Color accentColor =
-            (themeProvider.appTheme == AppTheme.system && lightDynamic != null)
+        final bool useMaterialYou =
+            themeProvider.appTheme == AppTheme.system &&
+            lightDynamic != null &&
+            darkDynamic != null;
+
+        final Color accentColor = useMaterialYou
             ? lightDynamic.primary
             : themeProvider.accentColor;
 
@@ -113,52 +117,48 @@ class MyApp extends StatelessWidget {
                 },
               );
 
+        final ColorScheme lightScheme = useMaterialYou
+            ? lightDynamic
+            : ColorScheme.fromSeed(
+                seedColor: accentColor,
+                brightness: Brightness.light,
+                dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
+              );
+
         final ThemeData baseLightTheme = ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: accentColor,
-            brightness: Brightness.light,
-            dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
-          ),
+          colorScheme: lightScheme,
           useMaterial3: true,
           pageTransitionsTheme: pageTransitionsTheme,
-
           shadowColor: themeProvider.optimization ? Colors.transparent : null,
-          splashFactory: themeProvider.optimization
-              ? NoSplash.splashFactory
-              : null,
+          splashFactory: themeProvider.optimization ? NoSplash.splashFactory : null,
           appBarTheme: AppBarTheme(
             titleTextStyle: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: ColorScheme.fromSeed(
-                seedColor: accentColor,
-                brightness: Brightness.light,
-              ).onSurface,
+              color: lightScheme.onSurface,
             ),
           ),
         );
 
+        final ColorScheme darkScheme = useMaterialYou
+            ? darkDynamic
+            : ColorScheme.fromSeed(
+                seedColor: accentColor,
+                brightness: Brightness.dark,
+                dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
+              );
+
         final ThemeData baseDarkTheme = ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: accentColor,
-            brightness: Brightness.dark,
-            dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
-          ),
+          colorScheme: darkScheme,
           useMaterial3: true,
           pageTransitionsTheme: pageTransitionsTheme,
-
           shadowColor: themeProvider.optimization ? Colors.transparent : null,
-          splashFactory: themeProvider.optimization
-              ? NoSplash.splashFactory
-              : null,
+          splashFactory: themeProvider.optimization ? NoSplash.splashFactory : null,
           appBarTheme: AppBarTheme(
             titleTextStyle: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: ColorScheme.fromSeed(
-                seedColor: accentColor,
-                brightness: Brightness.dark,
-              ).onSurface,
+              color: darkScheme.onSurface,
             ),
           ),
         );
