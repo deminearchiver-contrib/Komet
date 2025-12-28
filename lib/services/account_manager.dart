@@ -112,19 +112,43 @@ class AccountManager {
   }
 
   Future<void> switchAccount(String accountId) async {
-    final account = _accounts.firstWhere(
-      (acc) => acc.id == accountId,
-      orElse: () => throw Exception('Аккаунт не найден'),
-    );
-
-    _currentAccount = account;
-    await _saveCurrentAccountId(accountId);
-
-    final index = _accounts.indexWhere((acc) => acc.id == accountId);
-    if (index != -1) {
-      _accounts[index] = _accounts[index].copyWith(lastUsedAt: DateTime.now());
-      await _saveAccounts();
+    // Не падаем, если аккаунт пропал: берем найденный, первый или создаем заглушку.
+    Account? account;
+    final idx = _accounts.indexWhere((acc) => acc.id == accountId);
+    if (idx != -1) {
+      account = _accounts[idx];
+    } else if (_accounts.isNotEmpty) {
+      account = _accounts.first;
     }
+
+    if (account == null) {
+      final fallback = Account(
+        id: accountId,
+        token: '',
+        createdAt: DateTime.now(),
+        lastUsedAt: DateTime.now(),
+      );
+      _accounts.add(fallback);
+      _currentAccount = fallback;
+      await _saveAccounts();
+      await _saveCurrentAccountId(fallback.id);
+      return;
+    }
+
+    final resolved = account; // account гарантированно не null после возврата выше
+
+    _currentAccount = resolved;
+    await _saveCurrentAccountId(resolved.id);
+
+    final index = _accounts.indexWhere((acc) => acc.id == resolved.id);
+    if (index == -1) {
+      // Если почему-то нет в списке, добавим актуальный экземпляр
+      _accounts.add(resolved.copyWith(lastUsedAt: DateTime.now()));
+    } else {
+      _accounts[index] = _accounts[index].copyWith(lastUsedAt: DateTime.now());
+    }
+
+    await _saveAccounts();
   }
 
   Future<void> updateAccountProfile(String accountId, Profile profile) async {

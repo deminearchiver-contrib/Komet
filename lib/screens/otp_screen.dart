@@ -259,6 +259,7 @@ class _OTPScreenState extends State<OTPScreen> {
                     controller: _pinController,
                     focusNode: _pinFocusNode,
                     autofocus: true,
+                    androidSmsAutofillMethod: AndroidSmsAutofillMethod.smsUserConsentApi,
                     defaultPinTheme: defaultPinTheme,
                     focusedPinTheme: defaultPinTheme.copyWith(
                       decoration: defaultPinTheme.decoration!.copyWith(
