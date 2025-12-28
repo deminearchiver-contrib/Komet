@@ -111,6 +111,8 @@ class _ChatScreenState extends State<ChatScreen> {
   int _initialUnreadCount = 0;
 
   final Set<String> _sendingReactions = {};
+  StreamSubscription<String>? _connectionStatusSub;
+  String _connectionStatus = 'connecting';
 
   Future<void> _onAttachPressed() async {
     if (Platform.isAndroid || Platform.isIOS) {
@@ -641,6 +643,20 @@ class _ChatScreenState extends State<ChatScreen> {
           _hasTextSelection = false;
         });
       }
+    });
+
+    _connectionStatus =
+        ApiService.instance.isOnline &&
+                ApiService.instance.isSessionReady &&
+                ApiService.instance.isActuallyConnected
+            ? 'connected'
+            : 'connecting';
+
+    _connectionStatusSub = ApiService.instance.connectionStatus.listen((status) {
+      if (!mounted) return;
+      setState(() {
+        _connectionStatus = status;
+      });
     });
   }
 
@@ -1250,26 +1266,23 @@ class _ChatScreenState extends State<ChatScreen> {
       
       if (!mounted) return;
 
-      // Если с сервера пришли данные - объединяем с кешем
-      if (allMessages.isNotEmpty) {
+      final bool hasServerData = allMessages.isNotEmpty;
+
+      final List<Message> mergedMessages;
+      if (hasServerData) {
         // Объединяем кеш и новые сообщения, убирая дубликаты
         final Map<String, Message> messagesMap = {};
-        
-        // Сначала добавляем сообщения из кеша (если они есть)
+
         for (final msg in _messages) {
           messagesMap[msg.id] = msg;
         }
-        
-        // Затем добавляем/обновляем сообщения с сервера
+
         for (final msg in allMessages) {
-          // Если сообщение с таким id уже есть, заменяем его (серверные данные приоритетнее)
-          // Но если это локальное сообщение (id начинается с 'local_'), не заменяем его
           if (!msg.id.startsWith('local_') || !messagesMap.containsKey(msg.id)) {
             messagesMap[msg.id] = msg;
           }
         }
-        
-        // Также проверяем по cid для локальных сообщений
+
         final cidMap = <int, Message>{};
         for (final msg in messagesMap.values) {
           final cid = msg.cid;
@@ -1278,7 +1291,6 @@ class _ChatScreenState extends State<ChatScreen> {
             if (existing == null || !existing.id.startsWith('local_')) {
               cidMap[cid] = msg;
             } else if (!msg.id.startsWith('local_')) {
-              // Серверное сообщение заменяет локальное с тем же cid
               cidMap[cid] = msg;
               messagesMap.remove(existing.id);
               messagesMap[msg.id] = msg;
@@ -1286,20 +1298,17 @@ class _ChatScreenState extends State<ChatScreen> {
           }
         }
 
-        final mergedMessages = messagesMap.values.toList()
+        mergedMessages = messagesMap.values.toList()
           ..sort((a, b) => a.time.compareTo(b.time));
-
-        if (!mounted) return;
-        _messages.clear();
-        _messages.addAll(mergedMessages);
       } else {
-        // Если с сервера не пришли данные (таймаут или ошибка) - используем кеш как есть
-        // Кеш уже загружен выше, ничего не делаем
-        print('Используем кеш, так как сервер не ответил');
+        mergedMessages = List<Message>.from(_messages);
+        if (mergedMessages.isNotEmpty) {
+          print('Используем кеш, так как сервер не ответил');
+        }
       }
 
       final Set<int> senderIds = {};
-      for (final message in _messages) {
+      for (final message in mergedMessages) {
         senderIds.add(message.senderId);
 
         if (message.isReply && message.link?['message']?['sender'] != null) {
@@ -1335,8 +1344,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
       // Сохраняем объединенные сообщения в кеш (включая локальные)
       // Только если есть сообщения для сохранения
-      if (_messages.isNotEmpty) {
-        await chatCacheService.cacheChatMessages(widget.chatId, _messages);
+      if (mergedMessages.isNotEmpty) {
+        await chatCacheService.cacheChatMessages(widget.chatId, mergedMessages);
       }
 
       if (widget.isGroupChat) {
@@ -1344,35 +1353,35 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       final page = _anyOptimize ? _optPage : _pageSize;
-      final slice = allMessages.length > page
-          ? allMessages.sublist(allMessages.length - page)
-          : allMessages;
+      final slice = mergedMessages.length > page
+          ? mergedMessages.sublist(mergedMessages.length - page)
+          : mergedMessages;
+      final bool hasAnyMessages = mergedMessages.isNotEmpty;
+      final bool nextHasMore = hasServerData
+          ? mergedMessages.length >= 1000 ||
+              mergedMessages.length > slice.length
+          : (_hasMore && hasAnyMessages);
 
       Future.microtask(() {
-        if (mounted) {
-          setState(() {
-            _messages.clear();
-            _messages.addAll(slice);
-            _oldestLoadedTime = _messages.isNotEmpty
-                ? _messages.first.time
-                : null;
+        if (!mounted) return;
+        setState(() {
+          _messages
+            ..clear()
+            ..addAll(slice);
+          _oldestLoadedTime =
+              _messages.isNotEmpty ? _messages.first.time : null;
+          _hasMore = nextHasMore;
+          _buildChatItems();
+          _isLoadingHistory = false;
+        });
 
-            _hasMore =
-                allMessages.length >= 1000 ||
-                allMessages.length > _messages.length;
-
-            _buildChatItems();
-            _isLoadingHistory = false;
-          });
+        if (_messages.isNotEmpty) {
+          _jumpToBottom();
+          _updatePinnedMessage();
+        } else if (!widget.isChannel) {
+          _loadEmptyChatSticker();
         }
       });
-
-      _jumpToBottom();
-      _updatePinnedMessage();
-
-      if (_messages.isEmpty && !widget.isChannel) {
-        _loadEmptyChatSticker();
-      }
     } catch (e) {
       print("[ChatScreen] Ошибка при загрузке истории сообщений: $e");
       if (mounted) {
@@ -3071,6 +3080,60 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Widget _buildConnectionBanner() {
+    final colors = Theme.of(context).colorScheme;
+    final bool isConnected = ApiService.instance.isOnline &&
+        ApiService.instance.isSessionReady &&
+        ApiService.instance.isActuallyConnected;
+
+    if (isConnected) {
+      return const SizedBox.shrink();
+    }
+
+    String text;
+    if (_connectionStatus == 'connecting' || _connectionStatus == 'authorizing') {
+      text = 'Подключаемся...';
+    } else if (_connectionStatus == 'disconnected' ||
+        _connectionStatus == 'Все серверы недоступны') {
+      text = 'Нет подключения. Пробуем снова...';
+    } else {
+      text = 'Восстанавливаем соединение...';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: colors.surface.withOpacity(0.92),
+        border: Border(
+          bottom: BorderSide(color: colors.outlineVariant),
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: colors.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<ThemeProvider>();
@@ -3084,6 +3147,12 @@ class _ChatScreenState extends State<ChatScreen> {
           Positioned.fill(child: _buildChatWallpaper(theme)),
           Column(
             children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                switchInCurve: Curves.easeInOutCubic,
+                switchOutCurve: Curves.easeInOutCubic,
+                child: _buildConnectionBanner(),
+              ),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 250),
                 switchInCurve: Curves.easeInOutCubic,
@@ -5419,6 +5488,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _typingTimer?.cancel();
     _stopSelectionCheck();
     _apiSubscription?.cancel();
+    _connectionStatusSub?.cancel();
     _textController.removeListener(_handleTextChangedForKometColor);
     _textController.dispose();
     _textFocusNode.dispose();
