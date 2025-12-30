@@ -23,6 +23,8 @@ import 'package:gwid/services/message_queue_service.dart';
 import 'package:gwid/utils/spoofing_service.dart';
 import 'package:gwid/utils/log_utils.dart';
 import 'package:gwid/utils/fresh_mode_helper.dart';
+import 'package:gwid/utils/device_presets.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,6 +32,7 @@ import 'package:uuid/uuid.dart';
 import 'package:gwid/app_urls.dart';
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 import 'package:msgpack_dart/msgpack_dart.dart' as msgpack;
@@ -307,24 +310,93 @@ class ApiService {
         'headerUserAgent':
             spoofedData['user_agent'] as String? ??
             'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
-        'appVersion': spoofedData['app_version'] as String? ?? '25.12.1',
+        'appVersion': spoofedData['app_version'] as String? ?? '25.21.3',
         'screen': spoofedData['screen'] as String? ?? '1170x2532 3.0x',
         'timezone': spoofedData['timezone'] as String? ?? 'Europe/Moscow',
       };
     } else {
+      // При первом входе генерируем случайный спуфинг
+      await _generateAndSaveRandomSpoofing();
+      final generatedData = await SpoofingService.getSpoofedSessionData();
+      
+      if (generatedData != null) {
+        return {
+          'deviceType': generatedData['device_type'] as String? ?? 'ANDROID',
+          'locale': generatedData['locale'] as String? ?? 'ru',
+          'deviceLocale': generatedData['locale'] as String? ?? 'ru',
+          'osVersion': generatedData['os_version'] as String? ?? 'Android 14',
+          'deviceName': generatedData['device_name'] as String? ?? 'Samsung Galaxy S23',
+          'headerUserAgent': generatedData['user_agent'] as String? ?? '',
+          'appVersion': generatedData['app_version'] as String? ?? '25.21.3',
+          'screen': generatedData['screen'] as String? ?? '1080x2340 3.0x',
+          'timezone': generatedData['timezone'] as String? ?? 'Europe/Moscow',
+        };
+      }
+      
+      // Fallback на дефолтные значения, если что-то пошло не так
       return {
-        'deviceType': 'WEB',
+        'deviceType': 'ANDROID',
         'locale': 'ru',
         'deviceLocale': 'ru',
-        'osVersion': 'Windows',
-        'deviceName': 'Chrome',
+        'osVersion': 'Android 14',
+        'deviceName': 'Samsung Galaxy S23',
         'headerUserAgent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'appVersion': '25.12.1',
-        'screen': '1920x1080 1.0x',
+            'Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+        'appVersion': '25.21.3',
+        'screen': '1080x2340 3.0x',
         'timezone': 'Europe/Moscow',
       };
     }
+  }
+
+  Future<void> _generateAndSaveRandomSpoofing() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Проверяем, не был ли уже сгенерирован спуфинг
+    if (prefs.getBool('spoofing_enabled') == true) {
+      return;
+    }
+    
+    // Фильтруем пресеты, исключая WEB
+    final availablePresets = devicePresets
+        .where((p) => p.deviceType != 'WEB')
+        .toList();
+    
+    if (availablePresets.isEmpty) {
+      return;
+    }
+    
+    // Выбираем случайный пресет
+    final random = Random();
+    final preset = availablePresets[random.nextInt(availablePresets.length)];
+    
+    // Получаем реальный timezone и locale для частичного спуфинга
+    String timezone;
+    try {
+      final timezoneInfo = await FlutterTimezone.getLocalTimezone();
+      timezone = timezoneInfo.identifier;
+    } catch (_) {
+      timezone = preset.timezone;
+    }
+    
+    final locale = Platform.localeName.split('_').first;
+    
+    // Генерируем deviceId
+    final deviceId = generateRandomDeviceId();
+    
+    // Сохраняем в SharedPreferences
+    await prefs.setBool('spoofing_enabled', true);
+    await prefs.setString('spoof_useragent', preset.userAgent);
+    await prefs.setString('spoof_devicename', preset.deviceName);
+    await prefs.setString('spoof_osversion', preset.osVersion);
+    await prefs.setString('spoof_screen', preset.screen);
+    await prefs.setString('spoof_timezone', timezone);
+    await prefs.setString('spoof_locale', locale);
+    await prefs.setString('spoof_deviceid', deviceId);
+    await prefs.setString('spoof_devicetype', preset.deviceType);
+    await prefs.setString('spoof_appversion', '25.21.3');
+    
+    print('✅ Автоматически сгенерирован спуфинг: ${preset.deviceType} - ${preset.deviceName}');
   }
 
   bool get isAppInForeground => _isAppInForeground;

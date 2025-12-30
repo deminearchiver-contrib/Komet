@@ -4,7 +4,7 @@ export 'app_urls.dart';
 export 'app_colors.dart';
 import 'package:flutter/material.dart';
 
-const String appVersion = "0.3.4WIP";
+const String appVersion = "0.3.6";
 
 const String appName = "Komet";
 
