@@ -2605,46 +2605,48 @@ class _ChatsScreenState extends State<ChatsScreen>
   Widget _buildFolderEditMenuContent(ChatFolder folder, BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text(
-              'Действия',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                'Действия',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
             ),
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.add),
-            title: const Text('Выбрать чаты'),
-            onTap: () {
-              Navigator.of(context).pop();
-              _showAddChatsToFolderDialog(folder);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.edit),
-            title: const Text('Переименовать'),
-            onTap: () {
-              Navigator.of(context).pop();
-              _showRenameFolderDialog(folder);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.delete, color: Colors.red),
-            title: const Text(
-              'Удалить папку',
-              style: TextStyle(color: Colors.red),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.add),
+              title: const Text('Выбрать чаты'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _showAddChatsToFolderDialog(folder);
+              },
             ),
-            onTap: () {
-              Navigator.of(context).pop();
-              _showDeleteFolderDialog(folder);
-            },
-          ),
-          const SizedBox(height: 8),
-        ],
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: const Text('Переименовать'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _showRenameFolderDialog(folder);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text(
+                'Удалить папку',
+                style: TextStyle(color: Colors.red),
+              ),
+              onTap: () {
+                Navigator.of(context).pop();
+                _showDeleteFolderDialog(folder);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }
