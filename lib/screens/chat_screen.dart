@@ -116,6 +116,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _lastPeerReadMessageIdStr;
 
   final Set<String> _sendingReactions = {};
+  final Map<int, String> _pendingReactionSeqs = {}; // seq -> messageId
   StreamSubscription<String>? _connectionStatusSub;
   String _connectionStatus = 'connecting';
 
@@ -1117,6 +1118,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
       final opcode = message['opcode'];
       final cmd = message['cmd'];
+      final seq = message['seq'];
       final payload = message['payload'];
 
       if (payload is! Map<String, dynamic>) return;
@@ -1126,7 +1128,10 @@ class _ChatScreenState extends State<ChatScreen> {
           ? incomingChatId
           : int.tryParse(incomingChatId?.toString() ?? '');
 
-      if (chatIdNormalized == null || chatIdNormalized != widget.chatId) {
+      // Для реакций (opcode=178) chatId может отсутствовать в payload
+      final shouldCheckChatId = opcode != 178 || (opcode == 178 && payload.containsKey('chatId'));
+
+      if (shouldCheckChatId && (chatIdNormalized == null || chatIdNormalized != widget.chatId)) {
         return;
       }
 
@@ -1210,14 +1215,20 @@ class _ChatScreenState extends State<ChatScreen> {
         });
       } else if (opcode == 178) {
         if (cmd == 0x100 || cmd == 256) {
-          if (_sendingReactions.isNotEmpty) {
-            _sendingReactions.clear();
+          final messageId = _pendingReactionSeqs[seq];
+          if (messageId != null) {
+            _pendingReactionSeqs.remove(seq);
+            _updateMessageReaction(messageId, payload['reactionInfo'] ?? {});
+          } else {
+            // Fallback: clear all sending reactions
+            if (_sendingReactions.isNotEmpty) {
+              _sendingReactions.clear();
+              _buildChatItems();
 
-            Future.microtask(() {
               if (mounted) {
                 setState(() {});
               }
-            });
+            }
           }
         }
 
@@ -2548,14 +2559,6 @@ class _ChatScreenState extends State<ChatScreen> {
       sourceChatName: widget.contact.name,
       sourceChatIconUrl: widget.contact.photoBaseUrl,
     );
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Сообщение переслано'),
-        behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 2),
-      ),
-    );
   }
 
   void _cancelReply() {
@@ -3482,26 +3485,28 @@ class _ChatScreenState extends State<ChatScreen> {
                                               widget.onChatUpdated?.call();
                                             }
                                           : null,
-                                      onReaction: (emoji) {
+                                      onReaction: (emoji) async {
                                         _updateReactionOptimistically(
                                           item.message.id,
                                           emoji,
                                         );
-                                        ApiService.instance.sendReaction(
+                                        final seq = await ApiService.instance.sendReaction(
                                           widget.chatId,
                                           item.message.id,
                                           emoji,
                                         );
+                                        _pendingReactionSeqs[seq] = item.message.id;
                                         widget.onChatUpdated?.call();
                                       },
-                                      onRemoveReaction: () {
+                                      onRemoveReaction: () async {
                                         _removeReactionOptimistically(
                                           item.message.id,
                                         );
-                                        ApiService.instance.removeReaction(
+                                        final seq = await ApiService.instance.removeReaction(
                                           widget.chatId,
                                           item.message.id,
                                         );
+                                        _pendingReactionSeqs[seq] = item.message.id;
                                         widget.onChatUpdated?.call();
                                       },
                                       isGroupChat: widget.isGroupChat,

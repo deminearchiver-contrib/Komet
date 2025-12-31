@@ -157,22 +157,24 @@ extension ApiServiceContacts on ApiService {
     print('ApiService обновил presence данные: $_presenceData');
   }
 
-  void sendReaction(int chatId, String messageId, String emoji) {
+  Future<int> sendReaction(int chatId, String messageId, String emoji) async {
     final messageIdInt = int.tryParse(messageId) ?? 0;
     final payload = {
       "chatId": chatId,
       "messageId": messageIdInt,
       "reaction": {"reactionType": "EMOJI", "id": emoji},
     };
-    _sendMessage(178, payload);
+    final seq = await _sendMessage(178, payload);
     print('Отправляем реакцию: $emoji на сообщение $messageId в чате $chatId');
+    return seq;
   }
 
-  void removeReaction(int chatId, String messageId) {
+  Future<int> removeReaction(int chatId, String messageId) async {
     final messageIdInt = int.tryParse(messageId) ?? 0;
     final payload = {"chatId": chatId, "messageId": messageIdInt};
-    _sendMessage(179, payload);
+    final seq = await _sendMessage(179, payload);
     print('Удаляем реакцию с сообщения $messageId в чате $chatId');
+    return seq;
   }
 
   Future<Map<String, dynamic>> joinGroupByLink(String link) async {
