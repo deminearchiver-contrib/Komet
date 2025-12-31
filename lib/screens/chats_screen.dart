@@ -53,8 +53,16 @@ class ChatsScreen extends StatefulWidget {
   )?
   onChatSelected;
   final bool hasScaffold;
+  final bool isForwardMode;
+  final void Function(Chat chat)? onForwardChatSelected;
 
-  const ChatsScreen({super.key, this.onChatSelected, this.hasScaffold = true});
+  const ChatsScreen({
+    super.key,
+    this.onChatSelected,
+    this.hasScaffold = true,
+    this.isForwardMode = false,
+    this.onForwardChatSelected,
+  });
 
   @override
   State<ChatsScreen> createState() => _ChatsScreenState();
@@ -291,6 +299,7 @@ class _ChatsScreenState extends State<ChatsScreen>
     final handler = MessageHandler(
       setState: setState,
       getContext: () => context,
+      getMounted: () => mounted,
       allChats: _allChats,
       contacts: _contacts,
       folders: _folders,
@@ -1266,7 +1275,7 @@ class _ChatsScreenState extends State<ChatsScreen>
         bodyContent: bodyContent,
         buildAppBar: _buildAppBar,
         buildAppDrawer: _buildAppDrawer,
-        onAddPressed: () => _showAddMenu(context),
+        onAddPressed: widget.isForwardMode ? null : () => _showAddMenu(context),
       );
     } else {
       return bodyContent;
@@ -1902,7 +1911,9 @@ class _ChatsScreenState extends State<ChatsScreen>
               )
             : contact;
 
-        if (widget.onChatSelected != null) {
+        if (widget.isForwardMode && widget.onForwardChatSelected != null) {
+          widget.onForwardChatSelected!(chat);
+        } else if (widget.onChatSelected != null) {
           widget.onChatSelected!(
             chat,
             contactToUse,
@@ -2092,7 +2103,9 @@ class _ChatsScreenState extends State<ChatsScreen>
                       isBlockedByMe: false,
                     );
 
-                if (widget.onChatSelected != null) {
+                if (widget.isForwardMode && widget.onForwardChatSelected != null) {
+                  widget.onForwardChatSelected!(chat);
+                } else if (widget.onChatSelected != null) {
                   widget.onChatSelected!(
                     chat,
                     contactFallback,
@@ -3115,118 +3128,130 @@ class _ChatsScreenState extends State<ChatsScreen>
           ? Container(decoration: appBarDecoration)
           : null,
 
-      leading: _isSearchExpanded
+      leading: widget.isForwardMode
           ? IconButton(
               icon: const Icon(Icons.arrow_back),
-              onPressed: _clearSearch,
+              onPressed: () => Navigator.of(context).pop(),
             )
-          : Builder(
-              builder: (context) {
-                return IconButton(
-                  icon: const Icon(Icons.menu_rounded),
-                  onPressed: () => Scaffold.of(context).openDrawer(),
-                  tooltip: 'Меню',
-                );
-              },
-            ),
+          : _isSearchExpanded
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: _clearSearch,
+                )
+              : Builder(
+                  builder: (context) {
+                    return IconButton(
+                      icon: const Icon(Icons.menu_rounded),
+                      onPressed: () => Scaffold.of(context).openDrawer(),
+                      tooltip: 'Меню',
+                    );
+                  },
+                ),
 
-      title: _isSearchExpanded
-          ? _buildSearchField(colors)
-          : Row(
-              children: [
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    transitionBuilder:
-                        (Widget child, Animation<double> animation) {
-                          return FadeTransition(
-                            opacity: animation,
-                            child: child,
-                          );
+      title: widget.isForwardMode
+          ? const Text(
+              'Переслать...',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            )
+          : _isSearchExpanded
+              ? _buildSearchField(colors)
+              : Row(
+                  children: [
+                    Expanded(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        transitionBuilder:
+                            (Widget child, Animation<double> animation) {
+                              return FadeTransition(
+                                opacity: animation,
+                                child: child,
+                              );
+                            },
+                        layoutBuilder: (currentChild, previousChildren) {
+                              return Stack(
+                                alignment: Alignment.centerLeft,
+                                children: [
+                                  ...previousChildren,
+                                  if (currentChild != null) currentChild,
+                                ],
+                              );
+                            },
+                        child: _buildCurrentTitleWidget(),
+                      ),
+                    ),
+                  ],
+                ),
+      actions: widget.isForwardMode
+          ? []
+          : _isSearchExpanded
+              ? [
+                  if (_searchQuery.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(left: 4),
+                      child: IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
                         },
-                    layoutBuilder: (currentChild, previousChildren) {
-                      return Stack(
-                        alignment: Alignment.centerLeft,
-                        children: [
-                          ...previousChildren,
-                          if (currentChild != null) currentChild,
-                        ],
+                      ),
+                    ),
+                  Container(
+                    margin: const EdgeInsets.only(left: 4),
+                    child: IconButton(
+                      icon: const Icon(Icons.filter_list),
+                      onPressed: _showSearchFilters,
+                    ),
+                  ),
+                ]
+              : [
+                  if ((_prefs?.getBool('show_sferum_button') ?? true))
+                    IconButton(
+                      icon: Image.asset(
+                        'assets/images/spermum.png',
+                        width: 28,
+                        height: 28,
+                      ),
+                      onPressed: _openSferum,
+                      tooltip: 'Сферум',
+                    ),
+                  IconButton(
+                    icon: Icon(
+                      Icons.download, //ахуеть линтер ошибок не дал ! ! !
+                      color: Colors.white,
+                    ),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const DownloadsScreen(),
+                        ),
                       );
                     },
-                    child: _buildCurrentTitleWidget(),
+                    tooltip: 'Загрузки',
                   ),
-                ),
-              ],
-            ),
-      actions: _isSearchExpanded
-          ? [
-              if (_searchQuery.isNotEmpty)
-                Container(
-                  margin: const EdgeInsets.only(left: 4),
-                  child: IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      _searchController.clear();
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        _isSearchExpanded = true;
+                      });
+                      _searchAnimationController.forward();
+                      _searchFocusNode.requestFocus();
                     },
-                  ),
-                ),
-              Container(
-                margin: const EdgeInsets.only(left: 4),
-                child: IconButton(
-                  icon: const Icon(Icons.filter_list),
-                  onPressed: _showSearchFilters,
-                ),
-              ),
-            ]
-          : [
-              if ((_prefs?.getBool('show_sferum_button') ?? true))
-                IconButton(
-                  icon: Image.asset(
-                    'assets/images/spermum.png',
-                    width: 28,
-                    height: 28,
-                  ),
-                  onPressed: _openSferum,
-                  tooltip: 'Сферум',
-                ),
-              IconButton(
-                icon: Icon(
-                  Icons.download, //ахуеть линтер ошибок не дал ! ! !
-                  color: Colors.white,
-                ),
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const DownloadsScreen(),
-                    ),
-                  );
-                },
-                tooltip: 'Загрузки',
-              ),
-              InkWell(
-                onTap: () {
-                  setState(() {
-                    _isSearchExpanded = true;
-                  });
-                  _searchAnimationController.forward();
-                  _searchFocusNode.requestFocus();
-                },
 
-                onLongPress: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const UserIdLookupScreen(),
+                    onLongPress: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const UserIdLookupScreen(),
+                        ),
+                      );
+                    },
+                    customBorder: const CircleBorder(),
+                    child: Container(
+                      padding: const EdgeInsets.all(8.0),
+                      child: const Icon(Icons.search),
                     ),
-                  );
-                },
-                customBorder: const CircleBorder(),
-                child: Container(
-                  padding: const EdgeInsets.all(8.0),
-                  child: const Icon(Icons.search),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
+                  ),
+                  const SizedBox(width: 8),
+                ],
     );
   }
 
@@ -4033,7 +4058,9 @@ class _ChatsScreenState extends State<ChatsScreen>
         final participantCount =
             chat.participantsCount ?? chat.participantIds.length;
 
-        if (widget.onChatSelected != null) {
+        if (widget.isForwardMode && widget.onForwardChatSelected != null) {
+          widget.onForwardChatSelected!(chat);
+        } else if (widget.onChatSelected != null) {
           widget.onChatSelected!(
             chat,
             contactFallback,

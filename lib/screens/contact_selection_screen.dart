@@ -39,9 +39,16 @@ class _ContactSelectionScreenState extends State<ContactSelectionScreen> {
           .map((json) => Contact.fromJson(json as Map<String, dynamic>))
           .toList();
 
+      // Remove duplicates by contact ID
+      final uniqueContacts = <int, Contact>{};
+      for (final contact in contacts) {
+        uniqueContacts[contact.id] = contact;
+      }
+      final deduplicatedContacts = uniqueContacts.values.toList();
+
       setState(() {
-        _contacts = contacts;
-        _filteredContacts = contacts;
+        _contacts = deduplicatedContacts;
+        _filteredContacts = deduplicatedContacts;
         _isLoading = false;
       });
     } catch (e) {

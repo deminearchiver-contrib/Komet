@@ -7,14 +7,14 @@ class ChatsScreenScaffold extends StatelessWidget {
   final Widget bodyContent;
   final PreferredSizeWidget Function(BuildContext) buildAppBar;
   final Widget Function(BuildContext) buildAppDrawer;
-  final VoidCallback onAddPressed;
+  final VoidCallback? onAddPressed;
 
   const ChatsScreenScaffold({
     super.key,
     required this.bodyContent,
     required this.buildAppBar,
     required this.buildAppDrawer,
-    required this.onAddPressed,
+    this.onAddPressed,
   });
 
   @override
@@ -54,12 +54,14 @@ class ChatsScreenScaffold extends StatelessWidget {
                   child: Row(children: [Expanded(child: bodyContent)]),
                 )
               : Row(children: [Expanded(child: bodyContent)]),
-          floatingActionButton: FloatingActionButton(
-            onPressed: onAddPressed,
-            tooltip: 'Создать',
-            heroTag: 'create_menu',
-            child: const Icon(Icons.edit),
-          ),
+          floatingActionButton: onAddPressed != null
+              ? FloatingActionButton(
+                  onPressed: onAddPressed,
+                  tooltip: 'Создать',
+                  heroTag: 'create_menu',
+                  child: const Icon(Icons.edit),
+                )
+              : null,
         );
       },
     );

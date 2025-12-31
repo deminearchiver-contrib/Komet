@@ -13,6 +13,7 @@ import 'package:gwid/services/chat_cache_service.dart';
 class MessageHandler {
   final void Function(VoidCallback) setState;
   final BuildContext Function() getContext;
+  final bool Function() getMounted;
   final List<Chat> allChats;
   final Map<int, Contact> contacts;
   final List<ChatFolder> folders;
@@ -36,6 +37,7 @@ class MessageHandler {
   MessageHandler({
     required this.setState,
     required this.getContext,
+    required this.getMounted,
     required this.allChats,
     required this.contacts,
     required this.folders,
@@ -149,8 +151,7 @@ class MessageHandler {
 
   StreamSubscription? listen() {
     return ApiService.instance.messages.listen((message) {
-      final context = getContext();
-      if (!context.mounted) return;
+      if (!getMounted()) return;
 
       if (message['type'] == 'invalid_token') {
         print('Получено событие недействительного токена, перенаправляем на вход');

@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:gwid/utils/theme_provider.dart';
 import 'package:gwid/api/api_service.dart';
 import 'package:flutter/services.dart';
+import 'package:gwid/models/chat.dart';
 import 'package:gwid/models/contact.dart';
 import 'package:gwid/models/message.dart';
 import 'package:gwid/widgets/chat_message_bubble.dart';
@@ -39,6 +40,7 @@ import 'package:gwid/widgets/formatted_text_controller.dart';
 import 'package:gwid/screens/chat/models/chat_item.dart';
 import 'package:gwid/screens/chat/widgets/empty_chat_widget.dart';
 import 'package:gwid/widgets/message_bubble/models/message_read_status.dart';
+import 'package:gwid/screens/chats_screen.dart';
 
 bool _debugShowExactDate = false;
 
@@ -2503,26 +2505,6 @@ class _ChatScreenState extends State<ChatScreen> {
       return null;
     }
   }
-  void _retrySendMessage(Message message) {
-    final cid = message.cid ?? DateTime.now().millisecondsSinceEpoch;
-    ApiService.instance.sendMessage(
-      widget.chatId,
-      message.text,
-      replyToMessageId: message.link?['messageId'],
-      cid: cid,
-      elements: message.elements,
-    );
-  }
-
-  void _cancelSendMessage(Message message) {
-    // Удаляем сообщение из списка с анимацией
-    _removeMessages([message.id]);
-
-    // Очищаем очередь для этого cid если он есть
-    if (message.cid != null) {
-      MessageQueueService().removeFromQueue('send_message_${message.cid}');
-    }
-  }
 
   void _showForwardDialog(Message message) async {
     Map<String, dynamic>? chatData = ApiService.instance.lastChatsPayload;
@@ -2540,233 +2522,23 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    print('📨 Forward: найдено ${chatData['chats']?.length ?? 0} чатов');
-
-    final chats = chatData['chats'] as List<dynamic>;
-
-    final uniqueChats = <int, dynamic>{};
-    for (final chat in chats) {
-      final chatId = chat['id'] as int;
-      uniqueChats[chatId] = chat;
-    }
-
-    final availableChats = uniqueChats.values
-        .where((chat) => chat['id'] != widget.chatId || chat['id'] == 0)
-        .toList();
-
-    if (availableChats.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Нет доступных чатов для пересылки'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    await _loadContactsForForwardDialog(availableChats);
 
     if (!mounted) return;
 
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: '',
-      transitionDuration: const Duration(milliseconds: 250),
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        return ScaleTransition(
-          scale: CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-          child: FadeTransition(
-            opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
-            child: child,
-          ),
-        );
-      },
-      pageBuilder: (context, animation, secondaryAnimation) => AlertDialog(
-        title: const Text('Переслать сообщение'),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 400,
-          child: ListView.builder(
-            itemCount: availableChats.length,
-            itemBuilder: (context, index) {
-              final chat = availableChats[index] as Map<String, dynamic>;
-              return _buildForwardChatTile(context, chat, message);
-            },
-          ),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => ChatsScreen(
+          hasScaffold: true,
+          isForwardMode: true,
+          onForwardChatSelected: (Chat chat) {
+            Navigator.of(context).pop();
+            _performForward(message, chat.id);
+          },
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Отмена'),
-          ),
-        ],
       ),
     );
   }
 
-  Future<void> _loadContactsForForwardDialog(List<dynamic> availableChats) async {
-    final contactIdsToLoad = <int>{};
-
-    for (final chat in availableChats) {
-      final chatMap = chat as Map<String, dynamic>;
-      final chatId = chatMap['id'] as int;
-
-      if (chatId == 0) continue;
-
-      final participants = chatMap['participants'] as Map<String, dynamic>? ?? {};
-      final isGroupChat = participants.length > 2;
-
-      if (!isGroupChat) {
-        final participantIds = participants.keys
-            .map((id) => int.tryParse(id) ?? 0)
-            .where((id) => id != 0)
-            .toList();
-
-        for (final participantId in participantIds) {
-          if (participantId != _actualMyId && !_contactDetailsCache.containsKey(participantId)) {
-            contactIdsToLoad.add(participantId);
-          }
-        }
-      }
-    }
-
-    if (contactIdsToLoad.isNotEmpty) {
-      try {
-        final contacts = await ApiService.instance.fetchContactsByIds(contactIdsToLoad.toList());
-        for (final contact in contacts) {
-          _contactDetailsCache[contact.id] = contact;
-        }
-        print('✅ Загружено ${contacts.length} контактов для списка пересылки');
-      } catch (e) {
-        print('❌ Ошибка загрузки контактов для списка пересылки: $e');
-      }
-    }
-  }
-
-  Widget _buildForwardChatTile(
-    BuildContext context,
-    Map<String, dynamic> chat,
-    Message message,
-  ) {
-    final chatId = chat['id'] as int;
-    final chatTitle = chat['title'] as String?;
-
-    String chatName;
-    Widget avatar;
-    String subtitle = '';
-
-    if (chatId == 0) {
-      chatName = 'Избранное';
-      avatar = CircleAvatar(
-        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-        child: Icon(
-          Icons.star,
-          color: Theme.of(context).colorScheme.onPrimaryContainer,
-        ),
-      );
-      subtitle = 'Сохраненные сообщения';
-    } else {
-      final participants = chat['participants'] as Map<String, dynamic>? ?? {};
-      final isGroupChat = participants.length > 2;
-
-      if (isGroupChat) {
-        chatName = chatTitle?.isNotEmpty == true ? chatTitle! : 'Группа';
-        avatar = CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-          child: Icon(
-            Icons.group,
-            color: Theme.of(context).colorScheme.onPrimaryContainer,
-          ),
-        );
-        subtitle = '${participants.length} участников';
-      } else {
-        final participantIds = participants.keys
-            .map((id) => int.tryParse(id) ?? 0)
-            .toList();
-
-        int otherParticipantId = 0;
-        if (participantIds.isNotEmpty) {
-          otherParticipantId = participantIds.firstWhere(
-            (id) => _actualMyId == null || id != _actualMyId,
-            orElse: () => participantIds.first,
-          );
-        }
-
-        final contact = _contactDetailsCache[otherParticipantId];
-        if (contact == null && otherParticipantId != 0) {
-          _loadContactIfNeeded(otherParticipantId);
-        }
-
-        chatName = contact?.name ?? 'ID $otherParticipantId';
-
-        final avatarUrl = contact?.photoBaseUrl;
-
-        avatar = AvatarCacheService().getAvatarWidget(
-          avatarUrl,
-          userId: otherParticipantId,
-          size: 48,
-          fallbackText: chatName,
-          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-        );
-
-        subtitle = contact?.status ?? '';
-      }
-    }
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: Theme.of(context).colorScheme.surface,
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
-        ),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
-              width: 1,
-            ),
-          ),
-          child: ClipOval(child: avatar),
-        ),
-        title: Text(
-          chatName,
-          style: TextStyle(
-            fontWeight: FontWeight.w500,
-            fontSize: 16,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
-        ),
-        subtitle: subtitle.isNotEmpty
-            ? Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              )
-            : null,
-        trailing: Icon(
-          Icons.arrow_forward_ios,
-          size: 16,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-        onTap: () {
-          Navigator.of(context).pop();
-          _performForward(message, chatId);
-        },
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
 
   void _performForward(Message message, int targetChatId) {
     ApiService.instance.forwardMessage(
@@ -3935,6 +3707,8 @@ class _ChatScreenState extends State<ChatScreen> {
           return ContactProfileDialog(
             contact: widget.contact,
             isChannel: widget.isChannel,
+            myId: _actualMyId,
+            currentChatId: widget.chatId,
           );
         },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -6876,10 +6650,14 @@ class GroupProfileDraggableDialog extends StatelessWidget {
 class ContactProfileDialog extends StatefulWidget {
   final Contact contact;
   final bool isChannel;
+  final int? myId;
+  final int? currentChatId;
   const ContactProfileDialog({
     super.key,
     required this.contact,
     this.isChannel = false,
+    this.myId,
+    this.currentChatId,
   });
 
   @override
@@ -7185,9 +6963,7 @@ class _ContactProfileDialogState extends State<ContactProfileDialog> {
                             SizedBox(
                               width: double.infinity,
                               child: FilledButton.icon(
-                                onPressed: () {
-                                  Navigator.of(context).pop();
-                                },
+                                onPressed: _handleWriteMessage,
                                 icon: const Icon(Icons.message),
                                 label: const Text('Написать сообщение'),
                                 style: FilledButton.styleFrom(
@@ -7238,6 +7014,54 @@ class _ContactProfileDialogState extends State<ContactProfileDialog> {
         ],
       ),
     );
+  }
+
+  Future<void> _handleWriteMessage() async {
+    try {
+      int? chatId = widget.currentChatId;
+
+      if (chatId == null || chatId == 0) {
+        chatId = await ApiService.instance.getChatIdByUserId(widget.contact.id);
+      }
+
+      if (chatId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Не удалось открыть чат с пользователем'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (!mounted) return;
+
+      Navigator.of(context).pop();
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (ctx) => ChatScreen(
+            chatId: chatId!,
+            pinnedMessage: null,
+            contact: widget.contact,
+            myId: widget.myId ?? 0, // Fallback to 0 if myId is null
+            isGroupChat: false,
+            isChannel: widget.isChannel,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка при открытии чата: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 }
 
@@ -7821,7 +7645,10 @@ Future<void> openUserProfileById(BuildContext context, int userId) async {
           opaque: false,
           barrierColor: Colors.transparent,
           pageBuilder: (context, animation, secondaryAnimation) {
-            return ContactProfileDialog(contact: contactData);
+            return ContactProfileDialog(
+              contact: contactData,
+              myId: int.tryParse(ApiService.instance.userId ?? ''),
+            );
           },
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(
