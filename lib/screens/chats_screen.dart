@@ -3457,13 +3457,91 @@ class _ChatsScreenState extends State<ChatsScreen>
     );
   }
 
-  Widget _buildLastMessagePreview(Chat chat) {
-    final message = chat.lastMessage;
-    final colors = Theme.of(context).colorScheme;
+  Message? _extractForwardedMessage(Map<String, dynamic> link, Message fallback) {
+    final forwardedMessage = link['message'] as Map<String, dynamic>?;
+    if (forwardedMessage == null) return null;
 
-    // Проверяем, наше ли последнее сообщение
-    final isMyMessage = _myProfile != null && message.senderId == _myProfile!.id;
+    final attaches = (forwardedMessage['attaches'] as List?)
+            ?.map((e) => (e as Map).cast<String, dynamic>())
+            .toList() ??
+        const [];
 
+    final elements = (forwardedMessage['elements'] as List?)
+            ?.map((e) => (e as Map).cast<String, dynamic>())
+            .toList() ??
+        const [];
+
+    return Message(
+      id: forwardedMessage['id']?.toString() ?? 'forward_preview',
+      text: forwardedMessage['text'] as String? ?? '',
+      time: forwardedMessage['time'] as int? ?? fallback.time,
+      senderId: forwardedMessage['sender'] as int? ?? 0,
+      status: forwardedMessage['status'] as String?,
+      updateTime: forwardedMessage['updateTime'] as int?,
+      attaches: attaches,
+      cid: forwardedMessage['cid'] as int?,
+      reactionInfo: forwardedMessage['reactionInfo'] as Map<String, dynamic>?,
+      link: forwardedMessage['link'] as Map<String, dynamic>?,
+      elements: elements,
+    );
+  }
+
+  String? _getForwardedSenderName(Map<String, dynamic> link) {
+    final chatName = link['chatName'] as String?;
+    if (chatName != null && chatName.isNotEmpty) return chatName;
+
+    final forwardedMessage = link['message'] as Map<String, dynamic>?;
+    final originalSenderId = forwardedMessage?['sender'] as int?;
+    if (originalSenderId != null) {
+      final contact = _contacts[originalSenderId];
+      if (contact != null) {
+        return getContactDisplayName(
+          contactId: contact.id,
+          originalName: contact.name,
+          originalFirstName: contact.firstName,
+          originalLastName: contact.lastName,
+        );
+      }
+
+      // Попробуем дозагрузить контакт, чтобы позже показать имя.
+      _loadMissingContact(originalSenderId);
+
+      final senderName = forwardedMessage?['senderName'] as String?;
+      if (senderName != null && senderName.isNotEmpty) {
+        return senderName;
+      }
+
+      final firstName = forwardedMessage?['firstName'] as String?;
+      final lastName = forwardedMessage?['lastName'] as String?;
+      if (firstName != null && firstName.isNotEmpty) {
+        if (lastName != null && lastName.isNotEmpty) {
+          return '$firstName $lastName';
+        }
+        return firstName;
+      }
+    }
+
+    return 'Отправитель загружается';
+  }
+
+  String _buildForwardedSnippet(Message forwardedMessage) {
+    if (forwardedMessage.text.isNotEmpty) {
+      return forwardedMessage.text;
+    }
+
+    if (forwardedMessage.attaches.isNotEmpty) {
+      return _getAttachmentTypeText(forwardedMessage.attaches);
+    }
+
+    return 'Пересланное сообщение';
+  }
+
+  Widget _buildMessagePreviewContent(
+    Message message,
+    Chat chat,
+    ColorScheme colors, {
+    bool isForwarded = false,
+  }) {
     if (message.attaches.isNotEmpty) {
       for (final attach in message.attaches) {
         final type = attach['_type'];
@@ -3475,7 +3553,6 @@ class _ChatsScreenState extends State<ChatsScreen>
 
     Widget messagePreview;
     if (message.text.isEmpty && message.attaches.isNotEmpty) {
-      // Проверяем, есть ли фото или контакты среди вложений
       final hasPhoto = message.attaches.any((attach) => attach['_type'] == 'PHOTO');
       final hasContact = message.attaches.any((attach) => attach['_type'] == 'CONTACT');
 
@@ -3485,18 +3562,85 @@ class _ChatsScreenState extends State<ChatsScreen>
         messagePreview = _buildContactAttachmentPreview(message);
       } else {
         final attachmentText = _getAttachmentTypeText(message.attaches);
-        messagePreview = Text(attachmentText, maxLines: 1, overflow: TextOverflow.ellipsis);
+        messagePreview = Text(
+          attachmentText,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: colors.onSurfaceVariant),
+        );
       }
     } else if (message.attaches.isNotEmpty) {
-      // Есть и текст и вложения - проверяем фото
       final hasPhoto = message.attaches.any((attach) => attach['_type'] == 'PHOTO');
       if (hasPhoto) {
         messagePreview = _buildPhotoWithCaptionPreview(message);
       } else {
-        messagePreview = Text(message.text, maxLines: 1, overflow: TextOverflow.ellipsis);
+        messagePreview = Text(
+          message.text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: colors.onSurfaceVariant),
+        );
+      }
+    } else if (message.text.isNotEmpty) {
+      messagePreview = Text(
+        message.text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: colors.onSurfaceVariant),
+      );
+    } else {
+      messagePreview = Text(
+        isForwarded ? 'Пересланное сообщение' : '',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: colors.onSurfaceVariant),
+      );
+    }
+
+    return messagePreview;
+  }
+
+  Widget _buildLastMessagePreview(Chat chat) {
+    final message = chat.lastMessage;
+    final colors = Theme.of(context).colorScheme;
+
+    // Проверяем, наше ли последнее сообщение
+    final isMyMessage = _myProfile != null && message.senderId == _myProfile!.id;
+
+    Widget messagePreview;
+    if (message.isForwarded && message.link is Map<String, dynamic>) {
+      final link = message.link as Map<String, dynamic>;
+      final forwardedMessage = _extractForwardedMessage(link, message);
+      if (forwardedMessage != null) {
+        final forwardedFrom = _getForwardedSenderName(link);
+        final snippet = _buildForwardedSnippet(forwardedMessage);
+        final prefix = forwardedFrom?.isNotEmpty == true
+            ? forwardedFrom!
+            : 'Переслано';
+
+        messagePreview = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.forward, size: 14, color: colors.onSurfaceVariant),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                '$prefix: $snippet',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: colors.onSurfaceVariant,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        );
+      } else {
+        messagePreview = _buildMessagePreviewContent(message, chat, colors);
       }
     } else {
-      messagePreview = Text(message.text, maxLines: 1, overflow: TextOverflow.ellipsis);
+      messagePreview = _buildMessagePreviewContent(message, chat, colors);
     }
 
     // Если это наше сообщение - добавляем статус
