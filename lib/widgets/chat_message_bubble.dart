@@ -102,8 +102,8 @@ class ChatMessageBubble extends StatelessWidget {
   final VoidCallback? onReply;
   final VoidCallback? onForward;
   final VoidCallback? onComplain;
-  final VoidCallback? onRetrySend;
   final VoidCallback? onCancelSend;
+  final VoidCallback? onRetrySend;
   final int? myUserId;
   final bool? canEditMessage;
   final bool isGroupChat;
@@ -142,8 +142,8 @@ class ChatMessageBubble extends StatelessWidget {
     this.onReply,
     this.onForward,
     this.onComplain,
-    this.onRetrySend,
     this.onCancelSend,
+    this.onRetrySend,
     this.myUserId,
     this.canEditMessage,
     this.isGroupChat = false,
@@ -720,46 +720,35 @@ class ChatMessageBubble extends StatelessWidget {
   }
 
   void _showMessageContextMenu(BuildContext context, Offset tapPosition) {
-    final isSending = message.id.startsWith('local_');
+    final hasUserReaction = message.reactionInfo?['yourReaction'] != null;
+    final bool isPendingMessage = isMe &&
+      ((readStatus == MessageReadStatus.sending) ||
+        message.id.startsWith('local_'));
 
-    if (isSending) {
-      showDialog(
-        context: context,
-        barrierColor: Colors.transparent,
-        builder: (context) {
-          return _SendingMessageContextMenu(
-            message: message,
-            position: tapPosition,
-            onRetrySend: onRetrySend,
-            onCancelSend: onCancelSend,
-          );
-        },
-      );
-    } else {
-      final hasUserReaction = message.reactionInfo?['yourReaction'] != null;
-
-      showDialog(
-        context: context,
-        barrierColor: Colors.transparent,
-        builder: (context) {
-          return _MessageContextMenu(
-            message: message,
-            position: tapPosition,
-            onReply: onReply,
-            onEdit: onEdit,
-            onDeleteForMe: onDeleteForMe,
-            onDeleteForAll: onDeleteForAll,
-            onReaction: onReaction,
-            onRemoveReaction: onRemoveReaction,
-            onForward: onForward,
-            onComplain: onComplain,
-            canEditMessage: canEditMessage ?? false,
-            hasUserReaction: hasUserReaction,
-            isChannel: isChannel,
-          );
-        },
-      );
-    }
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (context) {
+        return _MessageContextMenu(
+          message: message,
+          position: tapPosition,
+          onReply: onReply,
+          onEdit: onEdit,
+          onDeleteForMe: onDeleteForMe,
+          onDeleteForAll: onDeleteForAll,
+          onReaction: onReaction,
+          onRemoveReaction: onRemoveReaction,
+          onForward: onForward,
+          onComplain: onComplain,
+          canEditMessage: canEditMessage ?? false,
+          hasUserReaction: hasUserReaction,
+          isChannel: isChannel,
+          isPending: isPendingMessage,
+          onCancelSend: onCancelSend,
+          onRetrySend: onRetrySend,
+        );
+      },
+    );
   }
 
   Widget _buildReactionsWidget(BuildContext context, Color textColor) {
@@ -2621,152 +2610,168 @@ class ChatMessageBubble extends StatelessWidget {
 
     final fileId = fileData['fileId'] as int?;
     final token = fileData['token'] as String?;
+    final progressNotifier =
+      fileId != null ? FileDownloadProgressService().getProgress(fileId.toString()) : null;
 
     final screenWidth = MediaQuery.of(context).size.width;
     final maxFileWidth = screenWidth < 400 ? screenWidth * 0.7 : 300.0;
 
-    return GestureDetector(
-      onTap: () =>
-          _handleFileDownload(context, fileId, token, fileName, chatId),
-      child: Container(
-        constraints: BoxConstraints(maxWidth: maxFileWidth),
-        decoration: BoxDecoration(
-          color: textColor.withOpacity(0.05),
-          borderRadius: borderRadius,
-          border: Border.all(color: textColor.withOpacity(0.1), width: 1),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: textColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  iconData,
-                  color: textColor.withOpacity(0.8),
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
+    Widget buildContent(double progress) {
+      final bool isDownloading = progress >= 0 && progress < 1.0;
 
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      fileName,
-                      style: TextStyle(
-                        color: textColor,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+      return GestureDetector(
+        onTap: isDownloading
+            ? null
+            : () =>
+                _handleFileDownload(context, fileId, token, fileName, chatId),
+        child: AbsorbPointer(
+          absorbing: isDownloading,
+          child: Container(
+            constraints: BoxConstraints(maxWidth: maxFileWidth),
+            decoration: BoxDecoration(
+              color: textColor.withOpacity(0.05),
+              borderRadius: borderRadius,
+              border: Border.all(color: textColor.withOpacity(0.1), width: 1),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: textColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    const SizedBox(height: 4),
-                    if (fileId != null)
-                      ValueListenableBuilder<double>(
-                        valueListenable: FileDownloadProgressService()
-                            .getProgress(fileId.toString()),
-                        builder: (context, progress, child) {
-                          if (progress < 0) {
-                            return Text(
-                              sizeStr,
-                              style: TextStyle(
-                                color: textColor.withOpacity(0.6),
-                                fontSize: 12,
-                              ),
-                            );
-                          } else if (progress < 1.0) {
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                LinearProgressIndicator(
-                                  value: progress,
-                                  minHeight: 3,
-                                  backgroundColor: textColor.withOpacity(0.1),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${(progress * 100).toStringAsFixed(0)}%',
+                    child: Icon(
+                      iconData,
+                      color: textColor.withOpacity(0.8),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          fileName,
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        if (fileId != null)
+                          Builder(
+                            builder: (context) {
+                              if (progress < 0) {
+                                return Text(
+                                  sizeStr,
                                   style: TextStyle(
                                     color: textColor.withOpacity(0.6),
-                                    fontSize: 11,
+                                    fontSize: 12,
                                   ),
-                                ),
-                              ],
-                            );
-                          } else {
-                            return Row(
-                              children: [
-                                Icon(
-                                  Icons.check_circle,
-                                  size: 12,
-                                  color: Colors.green.withOpacity(0.8),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Загружено',
-                                  style: TextStyle(
-                                    color: Colors.green.withOpacity(0.8),
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            );
-                          }
-                        },
-                      )
-                    else
-                      Text(
-                        sizeStr,
-                        style: TextStyle(
-                          color: textColor.withOpacity(0.6),
-                          fontSize: 12,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-
-              if (fileId != null)
-                ValueListenableBuilder<double>(
-                  valueListenable: FileDownloadProgressService().getProgress(
-                    fileId.toString(),
+                                );
+                              } else if (progress < 1.0) {
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    LinearProgressIndicator(
+                                      value: progress,
+                                      minHeight: 3,
+                                      backgroundColor:
+                                          textColor.withOpacity(0.1),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${(progress * 100).toStringAsFixed(0)}%',
+                                      style: TextStyle(
+                                        color: textColor.withOpacity(0.6),
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              } else {
+                                return Row(
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle,
+                                      size: 12,
+                                      color: Colors.green.withOpacity(0.8),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Загружено',
+                                      style: TextStyle(
+                                        color: Colors.green.withOpacity(0.8),
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }
+                            },
+                          )
+                        else
+                          Text(
+                            sizeStr,
+                            style: TextStyle(
+                              color: textColor.withOpacity(0.6),
+                              fontSize: 12,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                  builder: (context, progress, child) {
-                    if (progress >= 0 && progress < 1.0) {
-                      return const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      );
-                    }
-                    return Icon(
+
+                  if (fileId != null)
+                    Builder(
+                      builder: (context) {
+                        if (progress >= 0 && progress < 1.0) {
+                          return const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          );
+                        }
+                        return Icon(
+                          Icons.download_outlined,
+                          color: textColor.withOpacity(0.6),
+                          size: 20,
+                        );
+                      },
+                    )
+                  else
+                    Icon(
                       Icons.download_outlined,
                       color: textColor.withOpacity(0.6),
                       size: 20,
-                    );
-                  },
-                )
-              else
-                Icon(
-                  Icons.download_outlined,
-                  color: textColor.withOpacity(0.6),
-                  size: 20,
-                ),
-            ],
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
-      ),
-    );
+      );
+    }
+
+    if (progressNotifier != null) {
+      return ValueListenableBuilder<double>(
+        valueListenable: progressNotifier,
+        builder: (context, progress, _) => buildContent(progress),
+      );
+    }
+
+    return buildContent(-1);
   }
 
   Widget _buildMusicFileWidget(
@@ -2805,29 +2810,9 @@ class ChatMessageBubble extends StatelessWidget {
 
     final sizeStr = _formatFileSize(fileSize);
 
-    return GestureDetector(
-      onTap: () async {
-        final prefs = await SharedPreferences.getInstance();
-        final fileIdMap = prefs.getStringList('file_id_to_path_map') ?? [];
-        final fileIdString = fileId?.toString();
-
-        bool isDownloaded = false;
-        String? filePath;
-
-        if (fileIdString != null) {
-          for (final mapping in fileIdMap) {
-            if (mapping.startsWith('$fileIdString:')) {
-              filePath = mapping.substring(fileIdString.length + 1);
-              final file = io.File(filePath);
-              if (await file.exists()) {
-                isDownloaded = true;
-                break;
-              }
-            }
-          }
-        }
-
-        if (!isDownloaded) {
+    if (fileId == null) {
+      return GestureDetector(
+        onTap: () async {
           await _handleFileDownload(
             context,
             fileId,
@@ -2836,196 +2821,85 @@ class ChatMessageBubble extends StatelessWidget {
             chatId,
             preview: preview,
           );
-          await Future.delayed(const Duration(seconds: 1));
-          if (fileIdString != null) {
-            final updatedFileIdMap =
-                prefs.getStringList('file_id_to_path_map') ?? [];
-            for (final mapping in updatedFileIdMap) {
-              if (mapping.startsWith('$fileIdString:')) {
-                filePath = mapping.substring(fileIdString.length + 1);
-                final file = io.File(filePath);
-                if (await file.exists()) {
-                  isDownloaded = true;
-                  break;
-                }
-              }
-            }
-          }
-        }
-
-        if (isDownloaded && filePath != null) {
-          final track = MusicTrack(
-            id:
-                fileId?.toString() ??
-                DateTime.now().millisecondsSinceEpoch.toString(),
-            title: title,
-            artist: artist,
-            album: album,
-            albumArtUrl: albumArtUrl,
-            duration: duration,
-            filePath: filePath,
-            fileId: fileId,
-            token: token,
-            chatId: chatId,
-          );
-
-          final musicMetadataJson = prefs.getString('music_metadata') ?? '{}';
-          final musicMetadata =
-              jsonDecode(musicMetadataJson) as Map<String, dynamic>;
-          musicMetadata[fileIdString ?? ''] = track.toJson();
-          await prefs.setString('music_metadata', jsonEncode(musicMetadata));
-        }
-      },
-      child: Container(
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width < 400 ? MediaQuery.of(context).size.width * 0.7 : 300.0),
-        decoration: BoxDecoration(
-          color: textColor.withOpacity(0.05),
-          borderRadius: borderRadius,
-          border: Border.all(color: textColor.withOpacity(0.1), width: 1),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  color: textColor.withOpacity(0.1),
-                  child: albumArtUrl != null
-                      ? Image.network(
-                          albumArtUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Icon(
+        },
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width < 400
+                ? MediaQuery.of(context).size.width * 0.7
+                : 300.0,
+          ),
+          decoration: BoxDecoration(
+            color: textColor.withOpacity(0.05),
+            borderRadius: borderRadius,
+            border: Border.all(color: textColor.withOpacity(0.1), width: 1),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    color: textColor.withOpacity(0.1),
+                    child: albumArtUrl != null
+                        ? Image.network(
+                            albumArtUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Icon(
+                              Icons.music_note,
+                              color: textColor.withOpacity(0.8),
+                              size: 24,
+                            ),
+                          )
+                        : Icon(
                             Icons.music_note,
                             color: textColor.withOpacity(0.8),
                             size: 24,
                           ),
-                        )
-                      : Icon(
-                          Icons.music_note,
-                          color: textColor.withOpacity(0.8),
-                          size: 24,
-                        ),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        color: textColor,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      artist,
-                      style: TextStyle(
-                        color: textColor.withOpacity(0.7),
-                        fontSize: 12,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (album != null) ...[
-                      const SizedBox(height: 2),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                       Text(
-                        album,
+                        title,
                         style: TextStyle(
-                          color: textColor.withOpacity(0.6),
-                          fontSize: 11,
+                          color: textColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    ],
-                    const SizedBox(height: 4),
-                    if (fileId != null)
-                      ValueListenableBuilder<double>(
-                        valueListenable: FileDownloadProgressService()
-                            .getProgress(fileId.toString()),
-                        builder: (context, progress, child) {
-                          if (progress < 0) {
-                            return Row(
-                              children: [
-                                if (durationText.isNotEmpty) ...[
-                                  Text(
-                                    durationText,
-                                    style: TextStyle(
-                                      color: textColor.withOpacity(0.6),
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    '•',
-                                    style: TextStyle(
-                                      color: textColor.withOpacity(0.6),
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                ],
-                                Text(
-                                  sizeStr,
-                                  style: TextStyle(
-                                    color: textColor.withOpacity(0.6),
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            );
-                          } else if (progress < 1.0) {
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                LinearProgressIndicator(
-                                  value: progress,
-                                  minHeight: 3,
-                                  backgroundColor: textColor.withOpacity(0.1),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${(progress * 100).toStringAsFixed(0)}%',
-                                  style: TextStyle(
-                                    color: textColor.withOpacity(0.6),
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            );
-                          } else {
-                            return Row(
-                              children: [
-                                Icon(
-                                  Icons.check_circle,
-                                  size: 12,
-                                  color: Colors.green.withOpacity(0.8),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Загружено',
-                                  style: TextStyle(
-                                    color: Colors.green.withOpacity(0.8),
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            );
-                          }
-                        },
-                      )
-                    else ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        artist,
+                        style: TextStyle(
+                          color: textColor.withOpacity(0.7),
+                          fontSize: 12,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (album != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          album,
+                          style: TextStyle(
+                            color: textColor.withOpacity(0.6),
+                            fontSize: 11,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      const SizedBox(height: 4),
                       Row(
                         children: [
                           if (durationText.isNotEmpty) ...[
@@ -3055,173 +2929,285 @@ class ChatMessageBubble extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      FutureBuilder<bool>(
-                        future: fileId != null
-                            ? _isMusicTrackRegistered(fileId)
-                            : Future.value(false),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return const SizedBox.shrink();
-                          }
-                          if (snapshot.data == true) {
-                            return Text(
-                              'прослушать в \"Музыка\"',
-                              style: TextStyle(
-                                color: Colors.green.shade400,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                              ),
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        },
-                      ),
                     ],
+                  ),
+                ),
+                Icon(
+                  Icons.download_outlined,
+                  color: textColor.withOpacity(0.6),
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final progressNotifier =
+        FileDownloadProgressService().getProgress(fileId.toString());
+
+    return ValueListenableBuilder<double>(
+      valueListenable: progressNotifier,
+      builder: (context, progress, _) {
+        final bool isDownloading = progress >= 0 && progress < 1.0;
+
+        Future<void> handleTap() async {
+          if (isDownloading) return;
+
+          final prefs = await SharedPreferences.getInstance();
+          final fileIdMap = prefs.getStringList('file_id_to_path_map') ?? [];
+          final fileIdString = fileId.toString();
+
+          bool isDownloaded = false;
+          String? filePath;
+
+          for (final mapping in fileIdMap) {
+            if (mapping.startsWith('$fileIdString:')) {
+              filePath = mapping.substring(fileIdString.length + 1);
+              final file = io.File(filePath);
+              if (await file.exists()) {
+                isDownloaded = true;
+                break;
+              }
+            }
+          }
+
+          if (!isDownloaded) {
+            await _handleFileDownload(
+              context,
+              fileId,
+              token,
+              fileName,
+              chatId,
+              preview: preview,
+            );
+            await Future.delayed(const Duration(seconds: 1));
+            final updatedFileIdMap =
+                prefs.getStringList('file_id_to_path_map') ?? [];
+            for (final mapping in updatedFileIdMap) {
+              if (mapping.startsWith('$fileIdString:')) {
+                filePath = mapping.substring(fileIdString.length + 1);
+                final file = io.File(filePath);
+                if (await file.exists()) {
+                  isDownloaded = true;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (isDownloaded && filePath != null) {
+            final track = MusicTrack(
+              id: fileId.toString(),
+              title: title,
+              artist: artist,
+              album: album,
+              albumArtUrl: albumArtUrl,
+              duration: duration,
+              filePath: filePath,
+              fileId: fileId,
+              token: token,
+              chatId: chatId,
+            );
+
+            final musicMetadataJson = prefs.getString('music_metadata') ?? '{}';
+            final musicMetadata =
+                jsonDecode(musicMetadataJson) as Map<String, dynamic>;
+            musicMetadata[fileIdString] = track.toJson();
+            await prefs.setString('music_metadata', jsonEncode(musicMetadata));
+          }
+        }
+
+        return GestureDetector(
+          onTap: isDownloading ? null : handleTap,
+          child: AbsorbPointer(
+            absorbing: isDownloading,
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width < 400
+                    ? MediaQuery.of(context).size.width * 0.7
+                    : 300.0,
+              ),
+              decoration: BoxDecoration(
+                color: textColor.withOpacity(0.05),
+                borderRadius: borderRadius,
+                border: Border.all(color: textColor.withOpacity(0.1), width: 1),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        width: 56,
+                        height: 56,
+                        color: textColor.withOpacity(0.1),
+                        child: albumArtUrl != null
+                            ? Image.network(
+                                albumArtUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) => Icon(
+                                  Icons.music_note,
+                                  color: textColor.withOpacity(0.8),
+                                  size: 24,
+                                ),
+                              )
+                            : Icon(
+                                Icons.music_note,
+                                color: textColor.withOpacity(0.8),
+                                size: 24,
+                              ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            title,
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            artist,
+                            style: TextStyle(
+                              color: textColor.withOpacity(0.7),
+                              fontSize: 12,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (album != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              album,
+                              style: TextStyle(
+                                color: textColor.withOpacity(0.6),
+                                fontSize: 11,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                          const SizedBox(height: 4),
+                          if (progress < 0)
+                            Row(
+                              children: [
+                                if (durationText.isNotEmpty) ...[
+                                  Text(
+                                    durationText,
+                                    style: TextStyle(
+                                      color: textColor.withOpacity(0.6),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '•',
+                                    style: TextStyle(
+                                      color: textColor.withOpacity(0.6),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                                Text(
+                                  sizeStr,
+                                  style: TextStyle(
+                                    color: textColor.withOpacity(0.6),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            )
+                          else if (isDownloading)
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                LinearProgressIndicator(
+                                  value: progress,
+                                  minHeight: 3,
+                                  backgroundColor:
+                                      textColor.withOpacity(0.1),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${(progress * 100).toStringAsFixed(0)}%',
+                                  style: TextStyle(
+                                    color: textColor.withOpacity(0.6),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            )
+                          else
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.check_circle,
+                                  size: 12,
+                                  color: Colors.green.withOpacity(0.8),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Загружено',
+                                  style: TextStyle(
+                                    color: Colors.green.withOpacity(0.8),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ),
+                    isDownloading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : IconButton(
+                            onPressed: handleTap,
+                            icon: Icon(
+                              Icons.download_outlined,
+                              color: textColor.withOpacity(0.6),
+                              size: 20,
+                            ),
+                          ),
                   ],
                 ),
               ),
-              if (fileId != null)
-                ValueListenableBuilder<double>(
-                  valueListenable: FileDownloadProgressService().getProgress(
-                    fileId.toString(),
-                  ),
-                  builder: (context, progress, child) {
-                    if (progress >= 0 && progress < 1.0) {
-                      return const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      );
-                    }
-                    return IconButton(
-                      onPressed: () async {
-                        final prefs = await SharedPreferences.getInstance();
-                        final fileIdMap =
-                            prefs.getStringList('file_id_to_path_map') ?? [];
-                        final fileIdString = fileId.toString();
-
-                        bool isDownloaded = false;
-                        String? filePath;
-
-                        for (final mapping in fileIdMap) {
-                          if (mapping.startsWith('$fileIdString:')) {
-                            filePath = mapping.substring(
-                              fileIdString.length + 1,
-                            );
-                            final file = io.File(filePath);
-                            if (await file.exists()) {
-                              isDownloaded = true;
-                              break;
-                            }
-                          }
-                        }
-
-                        if (!isDownloaded) {
-                          await _handleFileDownload(
-                            context,
-                            fileId,
-                            token,
-                            fileName,
-                            chatId,
-                            preview: preview,
-                          );
-                          await Future.delayed(const Duration(seconds: 1));
-                          final updatedFileIdMap =
-                              prefs.getStringList('file_id_to_path_map') ?? [];
-                          for (final mapping in updatedFileIdMap) {
-                            if (mapping.startsWith('$fileIdString:')) {
-                              filePath = mapping.substring(
-                                fileIdString.length + 1,
-                              );
-                              final file = io.File(filePath);
-                              if (await file.exists()) {
-                                isDownloaded = true;
-                                break;
-                              }
-                            }
-                          }
-                        }
-
-                        if (isDownloaded && filePath != null) {
-                          final track = MusicTrack(
-                            id: fileId.toString(),
-                            title: title,
-                            artist: artist,
-                            album: album,
-                            albumArtUrl: albumArtUrl,
-                            duration: duration,
-                            filePath: filePath,
-                            fileId: fileId,
-                            token: token,
-                            chatId: chatId,
-                          );
-
-                          final musicMetadataJson =
-                              prefs.getString('music_metadata') ?? '{}';
-                          final musicMetadata =
-                              jsonDecode(musicMetadataJson)
-                                  as Map<String, dynamic>;
-                          musicMetadata[fileIdString] = track.toJson();
-                          await prefs.setString(
-                            'music_metadata',
-                            jsonEncode(musicMetadata),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.download_outlined),
-                      style: IconButton.styleFrom(
-                        backgroundColor: textColor.withOpacity(0.1),
-                        foregroundColor: textColor,
-                      ),
-                    );
-                  },
-                )
-              else
-                IconButton(
-                  onPressed: () async {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Не удалось загрузить файл'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.download_outlined),
-                  style: IconButton.styleFrom(
-                    backgroundColor: textColor.withOpacity(0.1),
-                    foregroundColor: textColor,
-                  ),
-                ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
   String _getFileExtension(String fileName) {
-    final parts = fileName.split('.');
-    if (parts.length > 1) {
-      return parts.last.toLowerCase();
+    final dotIndex = fileName.lastIndexOf('.');
+    if (dotIndex == -1 || dotIndex == fileName.length - 1) {
+      return '';
     }
-    return '';
+    return fileName.substring(dotIndex + 1).toLowerCase();
   }
 
   IconData _getFileIcon(String extension) {
-    switch (extension) {
-      case 'pdf':
-        return Icons.picture_as_pdf;
-      case 'doc':
-      case 'docx':
-        return Icons.description;
-      case 'xls':
-      case 'xlsx':
-        return Icons.table_chart;
+    switch (extension.toLowerCase()) {
       case 'txt':
+      case 'log':
         return Icons.text_snippet;
       case 'zip':
       case 'rar':
@@ -5550,6 +5536,9 @@ class _MessageContextMenu extends StatefulWidget {
   final bool canEditMessage;
   final bool hasUserReaction;
   final bool isChannel;
+  final bool isPending;
+  final VoidCallback? onCancelSend;
+  final VoidCallback? onRetrySend;
 
   const _MessageContextMenu({
     required this.message,
@@ -5565,6 +5554,9 @@ class _MessageContextMenu extends StatefulWidget {
     required this.canEditMessage,
     required this.hasUserReaction,
     this.isChannel = false,
+    required this.isPending,
+    this.onCancelSend,
+    this.onRetrySend,
   });
 
   @override
@@ -5903,12 +5895,23 @@ class _MessageContextMenuState extends State<_MessageContextMenu>
     final viewInsets = MediaQuery.of(context).viewInsets;
 
     const menuWidth = 250.0;
-    final double estimatedMenuHeight = _isEmojiListExpanded ? 320.0 : 250.0;
+    final double estimatedMenuHeight = widget.isPending
+        ? 160.0
+        : (_isEmojiListExpanded ? 320.0 : 250.0);
     const padding = 10.0;
 
-    final availableHeight = screenSize.height - viewInsets.bottom - padding;
+    double left;
+    double top;
 
-    double left = widget.position.dx - (menuWidth / 4);
+    if (widget.isPending) {
+      // For pending messages keep the compact menu centered near the tap point.
+      left = widget.position.dx - (menuWidth / 2);
+      top = widget.position.dy - (estimatedMenuHeight / 2);
+    } else {
+      left = widget.position.dx - (menuWidth / 4);
+      top = widget.position.dy;
+    }
+
     if (left + menuWidth > screenSize.width - padding) {
       left = screenSize.width - menuWidth - padding;
     }
@@ -5916,15 +5919,11 @@ class _MessageContextMenuState extends State<_MessageContextMenu>
       left = padding;
     }
 
-    double top = widget.position.dy;
-    if (top + estimatedMenuHeight > availableHeight) {
-      top = widget.position.dy - estimatedMenuHeight - 10;
+    if (top + estimatedMenuHeight > screenSize.height - padding) {
+      top = screenSize.height - estimatedMenuHeight - padding;
     }
     if (top < padding) {
       top = padding;
-    }
-    if (top + estimatedMenuHeight > availableHeight) {
-      top = availableHeight - estimatedMenuHeight;
     }
 
     return Scaffold(
@@ -5964,12 +5963,14 @@ class _MessageContextMenuState extends State<_MessageContextMenu>
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          AnimatedSize(
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeInOut,
-                            child: _buildEmojiSection(),
-                          ),
-                          const Divider(height: 12),
+                          if (!widget.isPending) ...[
+                            AnimatedSize(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeInOut,
+                              child: _buildEmojiSection(),
+                            ),
+                            const Divider(height: 12),
+                          ],
                           _buildActionsSection(theme),
                         ],
                       ),
@@ -6038,6 +6039,36 @@ class _MessageContextMenuState extends State<_MessageContextMenu>
   }
 
   Widget _buildActionsSection(ThemeData theme) {
+    if (widget.isPending) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildActionButton(
+            icon: Icons.cancel_rounded,
+            text: 'Отменить отправку',
+            color: theme.colorScheme.error,
+            onTap: widget.onCancelSend == null
+                ? null
+                : () {
+                    Navigator.pop(context);
+                    widget.onCancelSend!();
+                  },
+          ),
+          _buildActionButton(
+            icon: Icons.refresh_rounded,
+            text: 'Повторить отправку',
+            onTap: widget.onRetrySend == null
+                ? null
+                : () {
+                    Navigator.pop(context);
+                    widget.onRetrySend!();
+                  },
+          ),
+        ],
+      );
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
