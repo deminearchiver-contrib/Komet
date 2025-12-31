@@ -58,6 +58,8 @@ class ChatMessageBubble extends StatelessWidget {
   final VoidCallback? onReply;
   final VoidCallback? onForward;
   final VoidCallback? onComplain;
+  final VoidCallback? onCancelSend;
+  final VoidCallback? onRetrySend;
   final int? myUserId;
   final bool? canEditMessage;
   final bool isGroupChat;
@@ -96,6 +98,8 @@ class ChatMessageBubble extends StatelessWidget {
     this.onReply,
     this.onForward,
     this.onComplain,
+    this.onCancelSend,
+    this.onRetrySend,
     this.myUserId,
     this.canEditMessage,
     this.isGroupChat = false,
@@ -673,6 +677,9 @@ class ChatMessageBubble extends StatelessWidget {
 
   void _showMessageContextMenu(BuildContext context, Offset tapPosition) {
     final hasUserReaction = message.reactionInfo?['yourReaction'] != null;
+    final bool isPendingMessage = isMe &&
+      ((readStatus == MessageReadStatus.sending) ||
+        message.id.startsWith('local_'));
 
     showDialog(
       context: context,
@@ -692,6 +699,9 @@ class ChatMessageBubble extends StatelessWidget {
           canEditMessage: canEditMessage ?? false,
           hasUserReaction: hasUserReaction,
           isChannel: isChannel,
+          isPending: isPendingMessage,
+          onCancelSend: onCancelSend,
+          onRetrySend: onRetrySend,
         );
       },
     );
@@ -2556,152 +2566,168 @@ class ChatMessageBubble extends StatelessWidget {
 
     final fileId = fileData['fileId'] as int?;
     final token = fileData['token'] as String?;
+    final progressNotifier =
+      fileId != null ? FileDownloadProgressService().getProgress(fileId.toString()) : null;
 
     final screenWidth = MediaQuery.of(context).size.width;
     final maxFileWidth = screenWidth < 400 ? screenWidth * 0.7 : 300.0;
 
-    return GestureDetector(
-      onTap: () =>
-          _handleFileDownload(context, fileId, token, fileName, chatId),
-      child: Container(
-        constraints: BoxConstraints(maxWidth: maxFileWidth),
-        decoration: BoxDecoration(
-          color: textColor.withOpacity(0.05),
-          borderRadius: borderRadius,
-          border: Border.all(color: textColor.withOpacity(0.1), width: 1),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: textColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  iconData,
-                  color: textColor.withOpacity(0.8),
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
+    Widget buildContent(double progress) {
+      final bool isDownloading = progress >= 0 && progress < 1.0;
 
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      fileName,
-                      style: TextStyle(
-                        color: textColor,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+      return GestureDetector(
+        onTap: isDownloading
+            ? null
+            : () =>
+                _handleFileDownload(context, fileId, token, fileName, chatId),
+        child: AbsorbPointer(
+          absorbing: isDownloading,
+          child: Container(
+            constraints: BoxConstraints(maxWidth: maxFileWidth),
+            decoration: BoxDecoration(
+              color: textColor.withOpacity(0.05),
+              borderRadius: borderRadius,
+              border: Border.all(color: textColor.withOpacity(0.1), width: 1),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: textColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    const SizedBox(height: 4),
-                    if (fileId != null)
-                      ValueListenableBuilder<double>(
-                        valueListenable: FileDownloadProgressService()
-                            .getProgress(fileId.toString()),
-                        builder: (context, progress, child) {
-                          if (progress < 0) {
-                            return Text(
-                              sizeStr,
-                              style: TextStyle(
-                                color: textColor.withOpacity(0.6),
-                                fontSize: 12,
-                              ),
-                            );
-                          } else if (progress < 1.0) {
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                LinearProgressIndicator(
-                                  value: progress,
-                                  minHeight: 3,
-                                  backgroundColor: textColor.withOpacity(0.1),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${(progress * 100).toStringAsFixed(0)}%',
+                    child: Icon(
+                      iconData,
+                      color: textColor.withOpacity(0.8),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          fileName,
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        if (fileId != null)
+                          Builder(
+                            builder: (context) {
+                              if (progress < 0) {
+                                return Text(
+                                  sizeStr,
                                   style: TextStyle(
                                     color: textColor.withOpacity(0.6),
-                                    fontSize: 11,
+                                    fontSize: 12,
                                   ),
-                                ),
-                              ],
-                            );
-                          } else {
-                            return Row(
-                              children: [
-                                Icon(
-                                  Icons.check_circle,
-                                  size: 12,
-                                  color: Colors.green.withOpacity(0.8),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Загружено',
-                                  style: TextStyle(
-                                    color: Colors.green.withOpacity(0.8),
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            );
-                          }
-                        },
-                      )
-                    else
-                      Text(
-                        sizeStr,
-                        style: TextStyle(
-                          color: textColor.withOpacity(0.6),
-                          fontSize: 12,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-
-              if (fileId != null)
-                ValueListenableBuilder<double>(
-                  valueListenable: FileDownloadProgressService().getProgress(
-                    fileId.toString(),
+                                );
+                              } else if (progress < 1.0) {
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    LinearProgressIndicator(
+                                      value: progress,
+                                      minHeight: 3,
+                                      backgroundColor:
+                                          textColor.withOpacity(0.1),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${(progress * 100).toStringAsFixed(0)}%',
+                                      style: TextStyle(
+                                        color: textColor.withOpacity(0.6),
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              } else {
+                                return Row(
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle,
+                                      size: 12,
+                                      color: Colors.green.withOpacity(0.8),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Загружено',
+                                      style: TextStyle(
+                                        color: Colors.green.withOpacity(0.8),
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }
+                            },
+                          )
+                        else
+                          Text(
+                            sizeStr,
+                            style: TextStyle(
+                              color: textColor.withOpacity(0.6),
+                              fontSize: 12,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                  builder: (context, progress, child) {
-                    if (progress >= 0 && progress < 1.0) {
-                      return const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      );
-                    }
-                    return Icon(
+
+                  if (fileId != null)
+                    Builder(
+                      builder: (context) {
+                        if (progress >= 0 && progress < 1.0) {
+                          return const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          );
+                        }
+                        return Icon(
+                          Icons.download_outlined,
+                          color: textColor.withOpacity(0.6),
+                          size: 20,
+                        );
+                      },
+                    )
+                  else
+                    Icon(
                       Icons.download_outlined,
                       color: textColor.withOpacity(0.6),
                       size: 20,
-                    );
-                  },
-                )
-              else
-                Icon(
-                  Icons.download_outlined,
-                  color: textColor.withOpacity(0.6),
-                  size: 20,
-                ),
-            ],
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
-      ),
-    );
+      );
+    }
+
+    if (progressNotifier != null) {
+      return ValueListenableBuilder<double>(
+        valueListenable: progressNotifier,
+        builder: (context, progress, _) => buildContent(progress),
+      );
+    }
+
+    return buildContent(-1);
   }
 
   Widget _buildMusicFileWidget(
@@ -5288,6 +5314,9 @@ class _MessageContextMenu extends StatefulWidget {
   final bool canEditMessage;
   final bool hasUserReaction;
   final bool isChannel;
+  final bool isPending;
+  final VoidCallback? onCancelSend;
+  final VoidCallback? onRetrySend;
 
   const _MessageContextMenu({
     required this.message,
@@ -5303,6 +5332,9 @@ class _MessageContextMenu extends StatefulWidget {
     required this.canEditMessage,
     required this.hasUserReaction,
     this.isChannel = false,
+    required this.isPending,
+    this.onCancelSend,
+    this.onRetrySend,
   });
 
   @override
@@ -5640,10 +5672,23 @@ class _MessageContextMenuState extends State<_MessageContextMenu>
     final screenSize = MediaQuery.of(context).size;
 
     const menuWidth = 250.0;
-    final double estimatedMenuHeight = _isEmojiListExpanded ? 320.0 : 250.0;
+    final double estimatedMenuHeight = widget.isPending
+        ? 160.0
+        : (_isEmojiListExpanded ? 320.0 : 250.0);
     const padding = 10.0;
 
-    double left = widget.position.dx - (menuWidth / 4);
+    double left;
+    double top;
+
+    if (widget.isPending) {
+      // For pending messages keep the compact menu centered near the tap point.
+      left = widget.position.dx - (menuWidth / 2);
+      top = widget.position.dy - (estimatedMenuHeight / 2);
+    } else {
+      left = widget.position.dx - (menuWidth / 4);
+      top = widget.position.dy;
+    }
+
     if (left + menuWidth > screenSize.width - padding) {
       left = screenSize.width - menuWidth - padding;
     }
@@ -5651,15 +5696,11 @@ class _MessageContextMenuState extends State<_MessageContextMenu>
       left = padding;
     }
 
-    double top = widget.position.dy;
     if (top + estimatedMenuHeight > screenSize.height - padding) {
-      top = widget.position.dy - estimatedMenuHeight - 10;
+      top = screenSize.height - estimatedMenuHeight - padding;
     }
     if (top < padding) {
       top = padding;
-    }
-    if (top + estimatedMenuHeight > screenSize.height - padding) {
-      top = screenSize.height - estimatedMenuHeight - padding;
     }
 
     return Scaffold(
@@ -5699,12 +5740,14 @@ class _MessageContextMenuState extends State<_MessageContextMenu>
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          AnimatedSize(
-                            duration: const Duration(milliseconds: 250),
-                            curve: Curves.easeInOut,
-                            child: _buildEmojiSection(),
-                          ),
-                          const Divider(height: 12),
+                          if (!widget.isPending) ...[
+                            AnimatedSize(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeInOut,
+                              child: _buildEmojiSection(),
+                            ),
+                            const Divider(height: 12),
+                          ],
                           _buildActionsSection(theme),
                         ],
                       ),
@@ -5773,6 +5816,36 @@ class _MessageContextMenuState extends State<_MessageContextMenu>
   }
 
   Widget _buildActionsSection(ThemeData theme) {
+    if (widget.isPending) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildActionButton(
+            icon: Icons.cancel_rounded,
+            text: 'Отменить отправку',
+            color: theme.colorScheme.error,
+            onTap: widget.onCancelSend == null
+                ? null
+                : () {
+                    Navigator.pop(context);
+                    widget.onCancelSend!();
+                  },
+          ),
+          _buildActionButton(
+            icon: Icons.refresh_rounded,
+            text: 'Повторить отправку',
+            onTap: widget.onRetrySend == null
+                ? null
+                : () {
+                    Navigator.pop(context);
+                    widget.onRetrySend!();
+                  },
+          ),
+        ],
+      );
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,

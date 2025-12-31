@@ -2262,6 +2262,47 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  void _cancelPendingMessage(Message message) {
+    final cid = message.cid ?? int.tryParse(message.id.replaceFirst('local_', ''));
+    if (cid != null) {
+      MessageQueueService().removeFromQueue('msg_$cid');
+    }
+    _removeMessages([message.id]);
+  }
+
+  Future<void> _retryPendingMessage(Message message) async {
+    final cid = message.cid ?? int.tryParse(message.id.replaceFirst('local_', ''));
+    if (cid == null) return;
+
+    MessageQueueService().removeFromQueue('msg_$cid');
+
+    String? replyToId;
+    Message? replyToMessage;
+    final link = message.link;
+    if (link is Map<String, dynamic> && link['type'] == 'REPLY') {
+      final dynamic replyId = link['messageId'] ?? link['message']?['id'];
+      if (replyId != null) {
+        replyToId = replyId.toString();
+      }
+
+      final replyMessageMap = link['message'];
+      if (replyMessageMap is Map<String, dynamic>) {
+        replyToMessage = Message.fromJson(
+          replyMessageMap.map((key, value) => MapEntry(key.toString(), value)),
+        );
+      }
+    }
+
+    ApiService.instance.sendMessage(
+      widget.chatId,
+      message.text,
+      replyToMessageId: replyToId,
+      replyToMessage: replyToMessage,
+      cid: cid,
+      elements: message.elements,
+    );
+  }
+
   void _testSlideAnimation() {
     final myMessage = Message(
       id: 'test_my_${DateTime.now().millisecondsSinceEpoch}',
@@ -3567,6 +3608,20 @@ class _ChatScreenState extends State<ChatScreen> {
                                       avatarVerticalOffset: -8.0,
                                       onComplain: () =>
                                           _showComplaintDialog(item.message.id),
+                                      onCancelSend: isMe &&
+                                              readStatus ==
+                                                  MessageReadStatus.sending
+                                          ? () => _cancelPendingMessage(
+                                                item.message,
+                                              )
+                                          : null,
+                                      onRetrySend: isMe &&
+                                              readStatus ==
+                                                  MessageReadStatus.sending
+                                          ? () => _retryPendingMessage(
+                                                item.message,
+                                              )
+                                          : null,
                                       allPhotos: _cachedAllPhotos,
                                       onGoToMessage: _scrollToMessage,
                                     );
