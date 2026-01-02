@@ -1,11 +1,14 @@
 name: gwid
-description: A new Flutter project.
 
-# Предотвращение случайной публикации в pub
-publish_to: none
+description: A new Flutter project.
 
 # Версия приложения и номер сборки
 version: 0.4.0+9
+
+repository: https://github.com/KometTeam/Komet
+
+# Предотвращение случайной публикации в pub
+publish_to: none
 
 environment:
   # Поддерживаются версии Dart SDK от 3.10 до 4.0.
@@ -84,7 +87,7 @@ dev_dependencies:
   # Hosted зависимости
   flutter_lints: ^6.0.0
 
-# Конфигурация Flutter проекта
+# Конфигурация Flutter.
 flutter:
   # Рекомендуется использовать фреймворк для i18n вместо встроенного во Flutter.
   generate: false
@@ -97,7 +100,7 @@ flutter:
     - assets/images/
     - assets/icon/
 
-# Конфирурация генератора иконок приложения
+# Конфирурация генератора иконок приложения.
 flutter_launcher_icons:
   android: true
   ios: true
