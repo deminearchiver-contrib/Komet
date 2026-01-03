@@ -109,6 +109,13 @@ class _ChatNotificationSettingsDialogState
     }
   }
 
+  /// Создать исключение для этого чата если его ещё нет
+  void _ensureException() {
+    if (!_hasException) {
+      _hasException = true;
+    }
+  }
+
   Future<void> _removeException() async {
     await _settingsService.removeChatException(widget.chatId);
     setState(() {
@@ -158,9 +165,7 @@ class _ChatNotificationSettingsDialogState
       if (selectedValue != null) {
         setState(() {
           _vibrationMode = selectedValue;
-          if (!_hasException) {
-            _hasException = true; // Создаём исключение при изменении
-          }
+          _ensureException(); // Создаём исключение при изменении
         });
         await _saveSettings();
       }
@@ -262,9 +267,7 @@ class _ChatNotificationSettingsDialogState
                     onChanged: (value) async {
                       setState(() {
                         _notificationsEnabled = value;
-                        if (!_hasException) {
-                          _hasException = true; // Создаём исключение
-                        }
+                        _ensureException(); // Создаём исключение
                       });
                       await _saveSettings();
                     },

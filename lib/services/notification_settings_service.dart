@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 /// Типы чатов для настроек уведомлений
 enum ChatType {
@@ -28,6 +29,9 @@ class NotificationSettingsService {
   static const String _keyReactionsEnabled = 'notifications_reactions';
   static const String _keyVibrationMode = 'notifications_vibration_mode';
   static const String _keyChatExceptions = 'notifications_chat_exceptions';
+  
+  // Константы по умолчанию
+  static const VibrationMode _defaultVibrationMode = VibrationMode.short;
 
   /// Включены ли уведомления глобально
   Future<bool> areNotificationsEnabled() async {
@@ -93,7 +97,7 @@ class NotificationSettingsService {
   Future<VibrationMode> getVibrationMode() async {
     final prefs = await SharedPreferences.getInstance();
     final modeString = prefs.getString(_keyVibrationMode);
-    if (modeString == null) return VibrationMode.short;
+    if (modeString == null) return _defaultVibrationMode;
     
     switch (modeString) {
       case 'none':
@@ -103,7 +107,7 @@ class NotificationSettingsService {
       case 'long':
         return VibrationMode.long;
       default:
-        return VibrationMode.short;
+        return _defaultVibrationMode;
     }
   }
 
@@ -123,10 +127,7 @@ class NotificationSettingsService {
     if (exceptionsJson == null) return {};
 
     try {
-      final Map<String, dynamic> decoded =
-          Map<String, dynamic>.from(
-            _parseJson(exceptionsJson),
-          );
+      final decoded = json.decode(exceptionsJson) as Map<String, dynamic>;
       
       // Преобразуем ключи из String в int
       final result = <int, Map<String, dynamic>>{};
@@ -152,7 +153,7 @@ class NotificationSettingsService {
     final exceptions = await getChatExceptions();
     exceptions[chatId] = {
       'enabled': enabled,
-      'vibration': vibration?.name ?? VibrationMode.short.name,
+      'vibration': vibration?.name ?? _defaultVibrationMode.name,
     };
     await _saveChatExceptions(exceptions);
   }
@@ -229,109 +230,6 @@ class NotificationSettingsService {
       toSave[key.toString()] = value;
     });
     
-    await prefs.setString(_keyChatExceptions, _encodeJson(toSave));
-  }
-
-  // Вспомогательные методы для работы с JSON
-  dynamic _parseJson(String jsonString) {
-    // Простой парсер JSON для Map
-    // В реальном приложении лучше использовать dart:convert
-    try {
-      // Удаляем фигурные скобки и разбиваем по запятым
-      if (jsonString.startsWith('{') && jsonString.endsWith('}')) {
-        final content = jsonString.substring(1, jsonString.length - 1);
-        if (content.isEmpty) return {};
-        
-        final Map<String, dynamic> result = {};
-        final pairs = content.split('},');
-        
-        for (var pair in pairs) {
-          pair = pair.trim();
-          if (pair.endsWith('}')) {
-            pair = pair.substring(0, pair.length - 1);
-          }
-          
-          final colonIndex = pair.indexOf(':');
-          if (colonIndex == -1) continue;
-          
-          final key = pair.substring(0, colonIndex).replaceAll('"', '').trim();
-          final valueStr = pair.substring(colonIndex + 1).trim();
-          
-          // Парсим вложенный объект
-          if (valueStr.startsWith('{')) {
-            final Map<String, dynamic> nestedMap = {};
-            final nestedContent = valueStr.substring(1, valueStr.length - 1);
-            final nestedPairs = nestedContent.split(',');
-            
-            for (var nestedPair in nestedPairs) {
-              final nestedColonIndex = nestedPair.indexOf(':');
-              if (nestedColonIndex == -1) continue;
-              
-              final nestedKey = nestedPair
-                  .substring(0, nestedColonIndex)
-                  .replaceAll('"', '')
-                  .trim();
-              final nestedValue = nestedPair
-                  .substring(nestedColonIndex + 1)
-                  .replaceAll('"', '')
-                  .trim();
-              
-              // Определяем тип значения
-              if (nestedValue == 'true') {
-                nestedMap[nestedKey] = true;
-              } else if (nestedValue == 'false') {
-                nestedMap[nestedKey] = false;
-              } else {
-                nestedMap[nestedKey] = nestedValue;
-              }
-            }
-            result[key] = nestedMap;
-          }
-        }
-        return result;
-      }
-      return {};
-    } catch (e) {
-      print('Ошибка при парсинге JSON: $e');
-      return {};
-    }
-  }
-
-  String _encodeJson(Map<String, dynamic> map) {
-    // Простой энкодер JSON
-    final buffer = StringBuffer('{');
-    final entries = map.entries.toList();
-    
-    for (var i = 0; i < entries.length; i++) {
-      final entry = entries[i];
-      buffer.write('"${entry.key}":');
-      
-      if (entry.value is Map) {
-        buffer.write('{');
-        final nestedEntries = (entry.value as Map<String, dynamic>).entries.toList();
-        for (var j = 0; j < nestedEntries.length; j++) {
-          final nestedEntry = nestedEntries[j];
-          buffer.write('"${nestedEntry.key}":');
-          
-          if (nestedEntry.value is bool) {
-            buffer.write('${nestedEntry.value}');
-          } else {
-            buffer.write('"${nestedEntry.value}"');
-          }
-          
-          if (j < nestedEntries.length - 1) buffer.write(',');
-        }
-        buffer.write('}');
-      } else if (entry.value is bool) {
-        buffer.write('${entry.value}');
-      } else {
-        buffer.write('"${entry.value}"');
-      }
-      
-      if (i < entries.length - 1) buffer.write(',');
-    }
-    
-    buffer.write('}');
-    return buffer.toString();
+    await prefs.setString(_keyChatExceptions, json.encode(toSave));
   }
 }

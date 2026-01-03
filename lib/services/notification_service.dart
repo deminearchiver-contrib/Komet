@@ -28,6 +28,11 @@ class NotificationService {
 
   // MethodChannel для нативных уведомлений Android
   static const _nativeChannel = MethodChannel('com.gwid.app/notifications');
+  
+  // Константы паттернов вибрации
+  static const List<int> _vibrationPatternNone = [0];
+  static const List<int> _vibrationPatternShort = [0, 200, 100, 200];
+  static const List<int> _vibrationPatternLong = [0, 500, 200, 500];
 
   static Future<void> updateForegroundServiceNotification({
     String title = 'Komet',
@@ -703,13 +708,13 @@ class NotificationService {
   List<int> _getVibrationPattern(String mode) {
     switch (mode) {
       case 'none':
-        return [0]; // Без вибрации
+        return _vibrationPatternNone;
       case 'short':
-        return [0, 200, 100, 200]; // Короткая вибрация
+        return _vibrationPatternShort;
       case 'long':
-        return [0, 500, 200, 500]; // Длинная вибрация
+        return _vibrationPatternLong;
       default:
-        return [0, 200, 100, 200]; // По умолчанию короткая
+        return _vibrationPatternShort;
     }
   }
 
