@@ -179,9 +179,6 @@ class NotificationService {
               text,
             );
             print("✅ Сообщение из уведомления отправлено успешно");
-
-            // Отменяем уведомление после отправки
-            await cancelNotificationForChat(chatId);
           } catch (e) {
             print("❌ Ошибка отправки сообщения из уведомления: $e");
           }

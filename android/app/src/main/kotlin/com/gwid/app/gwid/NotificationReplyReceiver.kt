@@ -24,6 +24,11 @@ class NotificationReplyReceiver : BroadcastReceiver() {
             if (remoteInput != null) {
                 val replyText = remoteInput.getCharSequence("key_text_reply")?.toString()
                 val chatId = intent.getLongExtra("chat_id", 0L)
+                val senderName = intent.getStringExtra("sender_name") ?: ""
+                val isGroupChat = intent.getBooleanExtra("is_group_chat", false)
+                val groupTitle = intent.getStringExtra("group_title")
+                val myName = intent.getStringExtra("my_name")
+                val avatarPath = intent.getStringExtra("avatar_path")
                 
                 android.util.Log.d("NotificationReplyReceiver", "Reply text: $replyText, chatId: $chatId")
                 
@@ -35,14 +40,39 @@ class NotificationReplyReceiver : BroadcastReceiver() {
                             "text" to replyText
                         ))
                         android.util.Log.d("NotificationReplyReceiver", "Reply sent via MethodChannel")
-                        
-                        // Cancel notification after sending
-                        val notificationHelper = NotificationHelper(context)
-                        notificationHelper.cancelNotification(chatId)
+
+                        // Update notification so the sent reply is attributed to the current user
+                        // (otherwise some Android skins show it under chat/peer name).
+                        if (senderName.isNotBlank()) {
+                            val notificationHelper = NotificationHelper(context)
+                            notificationHelper.addOutgoingReplyAndUpdateNotification(
+                                chatId = chatId,
+                                replyText = replyText,
+                                senderName = senderName,
+                                isGroupChat = isGroupChat,
+                                groupTitle = groupTitle,
+                                avatarPath = avatarPath,
+                                myName = myName
+                            )
+                        }
                     } catch (e: Exception) {
                         android.util.Log.e("NotificationReplyReceiver", "Error sending via MethodChannel: ${e.message}")
                         // Save for processing on next app start
                         savePendingReply(context, chatId, replyText)
+
+                        // Even if sending failed (app not running), we can still update UI.
+                        if (senderName.isNotBlank()) {
+                            val notificationHelper = NotificationHelper(context)
+                            notificationHelper.addOutgoingReplyAndUpdateNotification(
+                                chatId = chatId,
+                                replyText = replyText,
+                                senderName = senderName,
+                                isGroupChat = isGroupChat,
+                                groupTitle = groupTitle,
+                                avatarPath = avatarPath,
+                                myName = myName
+                            )
+                        }
                     }
                 }
             }
