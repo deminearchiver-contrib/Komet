@@ -34,7 +34,7 @@ data class MessageData(
 class NotificationHelper(private val context: Context) {
 
     companion object {
-        const val CHANNEL_ID = "chat_messages_native"
+        const val CHANNEL_ID = "chat_messages_native_v2"
         const val CHANNEL_NAME = "Сообщения чатов"
         const val CHANNEL_DESC = "Уведомления о новых сообщениях"
         
@@ -59,7 +59,8 @@ class NotificationHelper(private val context: Context) {
             val importance = NotificationManager.IMPORTANCE_HIGH
             val channel = NotificationChannel(CHANNEL_ID, CHANNEL_NAME, importance).apply {
                 description = CHANNEL_DESC
-                enableVibration(true)
+                // Не включаем вибрацию на канале, чтобы можно было управлять ей в каждом уведомлении отдельно
+                enableVibration(false)
                 setShowBadge(true)
             }
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
