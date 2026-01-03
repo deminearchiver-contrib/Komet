@@ -14,7 +14,6 @@ class SpoofingService {
 
 
     return {
-      'user_agent': prefs.getString('spoof_useragent'),
       'device_name': prefs.getString('spoof_devicename'),
       'os_version': prefs.getString('spoof_osversion'),
       'screen': prefs.getString('spoof_screen'),

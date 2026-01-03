@@ -286,7 +286,17 @@ class ApiService {
   }
 
   String generateRandomDeviceId() {
-    return const Uuid().v4();
+    // Generate 16-character hex string (like f8268babd84e35a5)
+    final random = Random();
+    final bytes = List<int>.generate(8, (_) => random.nextInt(256));
+    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  }
+
+  /// Clears session-based values that should be regenerated on each app launch
+  static Future<void> clearSessionValues() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('session_mt_instanceid');
+    await prefs.remove('session_client_session_id');
   }
 
   Future<Map<String, dynamic>> _buildUserAgentPayload() async {
@@ -302,16 +312,13 @@ class ApiService {
         finalDeviceId = generateRandomDeviceId();
       }
       return {
-        'deviceType': spoofedData['device_type'] as String? ?? 'IOS',
+        'deviceType': spoofedData['device_type'] as String? ?? 'ANDROID',
         'locale': spoofedData['locale'] as String? ?? 'ru',
         'deviceLocale': spoofedData['locale'] as String? ?? 'ru',
-        'osVersion': spoofedData['os_version'] as String? ?? 'iOS 17.5.1',
-        'deviceName': spoofedData['device_name'] as String? ?? 'iPhone',
-        'headerUserAgent':
-            spoofedData['user_agent'] as String? ??
-            'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+        'osVersion': spoofedData['os_version'] as String? ?? 'Android 14',
+        'deviceName': spoofedData['device_name'] as String? ?? 'Samsung Galaxy S23',
         'appVersion': spoofedData['app_version'] as String? ?? '25.21.3',
-        'screen': spoofedData['screen'] as String? ?? '1170x2532 3.0x',
+        'screen': spoofedData['screen'] as String? ?? 'xxhdpi 480dpi 1080x2340',
         'timezone': spoofedData['timezone'] as String? ?? 'Europe/Moscow',
       };
     } else {
@@ -325,9 +332,8 @@ class ApiService {
           'deviceLocale': generatedData['locale'] as String? ?? 'ru',
           'osVersion': generatedData['os_version'] as String? ?? 'Android 14',
           'deviceName': generatedData['device_name'] as String? ?? 'Samsung Galaxy S23',
-          'headerUserAgent': generatedData['user_agent'] as String? ?? '',
           'appVersion': generatedData['app_version'] as String? ?? '25.21.3',
-          'screen': generatedData['screen'] as String? ?? '1080x2340 3.0x',
+          'screen': generatedData['screen'] as String? ?? 'xxhdpi 480dpi 1080x2340',
           'timezone': generatedData['timezone'] as String? ?? 'Europe/Moscow',
         };
       }
@@ -338,10 +344,8 @@ class ApiService {
         'deviceLocale': 'ru',
         'osVersion': 'Android 14',
         'deviceName': 'Samsung Galaxy S23',
-        'headerUserAgent':
-            'Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
         'appVersion': '25.21.3',
-        'screen': '1080x2340 3.0x',
+        'screen': 'xxhdpi 480dpi 1080x2340',
         'timezone': 'Europe/Moscow',
       };
     }
@@ -357,7 +361,7 @@ class ApiService {
     
 
     final availablePresets = devicePresets
-        .where((p) => p.deviceType != 'WEB') //✖️✖️✖️✖️✖️ ЗАПРЕТ НЕЛЬЗЯ АЛО ✖️✖️✖️✖️
+        .where((p) => p.deviceType == 'ANDROID') // Только Android устройства
         .toList();
     
     if (availablePresets.isEmpty) {
@@ -382,7 +386,6 @@ class ApiService {
     final deviceId = generateRandomDeviceId();
     
     await prefs.setBool('spoofing_enabled', true);
-    await prefs.setString('spoof_useragent', preset.userAgent);
     await prefs.setString('spoof_devicename', preset.deviceName);
     await prefs.setString('spoof_osversion', preset.osVersion);
     await prefs.setString('spoof_screen', preset.screen);

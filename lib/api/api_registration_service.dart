@@ -674,7 +674,9 @@ class RegistrationService {
 
     
     final mtInstanceId = _uuid.v4();
-    final deviceId = _uuid.v4();
+    // Generate 16-character hex string deviceId (like f8268babd84e35a5)
+    final deviceIdBytes = List<int>.generate(8, (_) => _random.nextInt(256));
+    final deviceId = deviceIdBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
     final possibleDeviceNames = <String>[
       'Samsung Galaxy S23',
       'Samsung Galaxy S22',
@@ -701,7 +703,7 @@ class RegistrationService {
         "appVersion": "25.14.2",
         "osVersion": "Android 14",
         "timezone": "Europe/Moscow",
-        "screen": "440dpi 440dpi 1080x2072",
+        "screen": "xxhdpi 440dpi 1080x2072",
         "pushDeviceType": "GCM",
         "arch": "x86_64",
         "locale": "ru",

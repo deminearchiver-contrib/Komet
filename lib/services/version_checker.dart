@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:gwid/utils/spoofing_service.dart';
 
 class VersionChecker {
   static const String _url = 'https://www.rustore.ru/catalog/app/ru.oneme.app';
@@ -9,10 +8,7 @@ class VersionChecker {
 
   static Future<String> getLatestVersion() async {
     try {
-      final spoofData = await SpoofingService.getSpoofedSessionData();
-      final userAgent = spoofData?['user_agent'] ?? _defaultUserAgent;
-
-      final html = await _fetchPage(_url, userAgent);
+      final html = await _fetchPage(_url, _defaultUserAgent);
 
       final version = _extractVersionFromJsonLd(html);
 
