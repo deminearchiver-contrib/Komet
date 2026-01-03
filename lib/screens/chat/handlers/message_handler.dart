@@ -830,6 +830,7 @@ class MessageHandler {
         chatId < 0 ||
         (effectiveChat != null &&
             (effectiveChat.isGroup || effectiveChat.type == 'CHAT'));
+    final isChannel = effectiveChat?.type == 'CHANNEL';
     final groupTitle =
         effectiveChat?.title ??
         effectiveChat?.displayTitle ??
@@ -844,6 +845,7 @@ class MessageHandler {
       messageText: _getAttachmentPreviewText(message),
       avatarUrl: avatarUrl,
       isGroupChat: isGroupChat,
+      isChannel: isChannel,
       groupTitle: groupTitle,
     );
   }
@@ -899,6 +901,7 @@ class MessageHandler {
         chatId < 0 ||
         (effectiveChat != null &&
             (effectiveChat.isGroup || effectiveChat.type == 'CHAT'));
+    final isChannel = effectiveChat?.type == 'CHANNEL';
     final groupTitle =
         effectiveChat?.title ??
         effectiveChat?.displayTitle ??
@@ -911,6 +914,7 @@ class MessageHandler {
       messageText: _getAttachmentPreviewText(message),
       avatarUrl: avatarUrl,
       isGroupChat: isGroupChat,
+      isChannel: isChannel,
       groupTitle: groupTitle,
     );
   }

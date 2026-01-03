@@ -85,6 +85,7 @@ class _ChatsScreenState extends State<ChatsScreen>
   String _searchFilter = 'all';
   bool _hasRequestedBlockedContacts = false;
   final Set<int> _loadingContactIds = {};
+  bool _isSwitchingAccounts = false;
 
   List<ChatFolder> _folders = [];
   String? _selectedFolderId;
@@ -320,6 +321,12 @@ class _ChatsScreenState extends State<ChatsScreen>
   }
 
   void _showTokenExpiredDialog(String message) {
+    // Don't show dialog if we're in the middle of switching accounts
+    // The account switcher will handle the error
+    if (_isSwitchingAccounts) {
+      return;
+    }
+    
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1257,7 +1264,7 @@ class _ChatsScreenState extends State<ChatsScreen>
               );
             }
             if (snapshot.hasData) {
-              if (_allChats.isEmpty) {
+              if (!_chatsLoaded) {
                 final chatListJson = snapshot.data!['chats'] as List;
                 final contactListJson = snapshot.data!['contacts'] as List;
                 _allChats = chatListJson
@@ -1577,12 +1584,26 @@ class _ChatsScreenState extends State<ChatsScreen>
                                           ? null
                                           : () async {
                                               Navigator.pop(context);
+                                              setState(() {
+                                                _isSwitchingAccounts = true;
+                                              });
                                               try {
                                                 await ApiService.instance
                                                     .switchAccount(account.id);
                                                 if (mounted) {
                                                   setState(() {
                                                     _isAccountsExpanded = false;
+                                                    // Clear old account's data
+                                                    _allChats.clear();
+                                                    _filteredChats.clear();
+                                                    _contacts.clear();
+                                                    _folders.clear();
+                                                    _chatDrafts.clear();
+                                                    _searchResults.clear();
+                                                    _myProfile = null;
+                                                    _isProfileLoading = true;
+                                                    _chatsLoaded = false;
+                                                    
                                                     _loadMyProfile();
                                                     _chatsFuture = (() async {
                                                       try {
@@ -1603,17 +1624,45 @@ class _ChatsScreenState extends State<ChatsScreen>
                                                 }
                                               } catch (e) {
                                                 if (mounted) {
-                                                  ScaffoldMessenger.of(
-                                                    context,
-                                                  ).showSnackBar(
-                                                    SnackBar(
-                                                      content: Text(
-                                                        'Ошибка переключения аккаунта: $e',
+                                                  final errorMessage = e.toString();
+                                                  // Check if this is an invalid token error
+                                                  const invalidTokenKeywords = ['invalid_token', 'FAIL_WRONG_PASSWORD'];
+                                                  final isInvalidToken = invalidTokenKeywords.any(
+                                                    (keyword) => errorMessage.contains(keyword)
+                                                  ) || errorMessage.contains('недействительн');
+                                                  
+                                                  if (isInvalidToken) {
+                                                    ScaffoldMessenger.of(
+                                                      context,
+                                                    ).showSnackBar(
+                                                      SnackBar(
+                                                        content: Text(
+                                                          'Аккаунт недействителен. Требуется повторная авторизация.',
+                                                        ),
+                                                        backgroundColor:
+                                                            colors.error,
+                                                        duration: const Duration(seconds: 4),
                                                       ),
-                                                      backgroundColor:
-                                                          colors.error,
-                                                    ),
-                                                  );
+                                                    );
+                                                  } else {
+                                                    ScaffoldMessenger.of(
+                                                      context,
+                                                    ).showSnackBar(
+                                                      SnackBar(
+                                                        content: Text(
+                                                          'Ошибка переключения аккаунта: $e',
+                                                        ),
+                                                        backgroundColor:
+                                                            colors.error,
+                                                      ),
+                                                    );
+                                                  }
+                                                }
+                                              } finally {
+                                                if (mounted) {
+                                                  setState(() {
+                                                    _isSwitchingAccounts = false;
+                                                  });
                                                 }
                                               }
                                             },

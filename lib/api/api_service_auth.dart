@@ -1,6 +1,20 @@
 part of 'api_service.dart';
 
 extension ApiServiceAuth on ApiService {
+  /// Reset session completely for full reconnection
+  void _resetSession() {
+    _messageQueue.clear();
+    _lastChatsPayload = null;
+    _chatsFetchedInThisSession = false;
+    _isSessionOnline = false;
+    _isSessionReady = false;
+    _handshakeSent = false;
+    _sessionId = DateTime.now().millisecondsSinceEpoch;
+    _lastActionTime = _sessionId;
+    _actionId = 1;
+    _isColdStartSent = false;
+  }
+
   Future<void> _clearAuthToken() async {
     print("Очищаем токен авторизации...");
     authToken = null;
@@ -194,10 +208,18 @@ extension ApiServiceAuth on ApiService {
   Future<void> switchAccount(String accountId) async {
     print("Переключение на аккаунт: $accountId");
 
-    disconnect();
+    const invalidAccountError = 'invalid_token: Аккаунт недействителен';
 
     final accountManager = AccountManager();
     await accountManager.initialize();
+    
+    // Save the current account ID in case we need to rollback
+    final previousAccountId = accountManager.currentAccount?.id;
+    final previousToken = authToken;
+    final previousUserId = userId;
+
+    disconnect();
+
     await accountManager.switchAccount(accountId);
 
     final currentAccount = accountManager.currentAccount;
@@ -205,23 +227,77 @@ extension ApiServiceAuth on ApiService {
       authToken = currentAccount.token;
       userId = currentAccount.userId;
 
-      _messageQueue.clear();
-      _lastChatsPayload = null;
-      _chatsFetchedInThisSession = false;
-      _isSessionOnline = false;
-      _isSessionReady = false;
-      _handshakeSent = false;
+      // Reset session completely for full reconnection
+      _resetSession();
 
-      await connect();
+      // Listen for invalid_token messages during account switch
+      bool invalidTokenDetected = false;
+      StreamSubscription? tempSubscription;
+      
+      tempSubscription = messages.listen((message) {
+        if (message != null && message['type'] == 'invalid_token') {
+          invalidTokenDetected = true;
+          tempSubscription?.cancel();
+        }
+      });
 
-      await waitUntilOnline();
+      try {
+        await connect();
 
-      await getChatsAndContacts(force: true);
+        await waitUntilOnline().timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            if (invalidTokenDetected) {
+              throw Exception(invalidAccountError);
+            }
+            throw TimeoutException('Таймаут подключения');
+          },
+        );
 
-      final profile = _lastChatsPayload?['profile'];
-      if (profile != null) {
-        final profileObj = Profile.fromJson(profile);
-        await accountManager.updateAccountProfile(accountId, profileObj);
+        if (invalidTokenDetected) {
+          throw Exception(invalidAccountError);
+        }
+
+        await getChatsAndContacts(force: true);
+
+        final profile = _lastChatsPayload?['profile'];
+        if (profile != null) {
+          final profileObj = Profile.fromJson(profile);
+          await accountManager.updateAccountProfile(accountId, profileObj);
+        }
+      } catch (e) {
+        // Clean up and restore previous account if switch failed
+        tempSubscription?.cancel();
+        
+        print("Ошибка переключения аккаунта: $e");
+        
+        // Restore previous account
+        if (previousAccountId != null) {
+          print("Восстанавливаем предыдущий аккаунт: $previousAccountId");
+          
+          // First restore in AccountManager
+          await accountManager.switchAccount(previousAccountId);
+          
+          // Then restore in ApiService
+          disconnect();
+          authToken = previousToken;
+          userId = previousUserId;
+          
+          // Reset session completely for full reconnection
+          _resetSession();
+          
+          // Try to reconnect to previous account
+          try {
+            await connect();
+            await waitUntilOnline().timeout(const Duration(seconds: 10));
+          } catch (reconnectError) {
+            print("Ошибка восстановления предыдущего аккаунта: $reconnectError");
+          }
+        }
+        
+        rethrow;
+      } finally {
+        tempSubscription?.cancel();
       }
     }
   }
