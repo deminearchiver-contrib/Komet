@@ -37,12 +37,12 @@ class NotificationHelper(private val context: Context) {
         const val CHANNEL_ID = "chat_messages_native_v2"
         const val CHANNEL_NAME = "Сообщения чатов"
         const val CHANNEL_DESC = "Уведомления о новых сообщениях"
-        
+
         const val BACKGROUND_SERVICE_CHANNEL_ID = "background_service"
         const val BACKGROUND_SERVICE_CHANNEL_NAME = "Фоновый сервис"
         const val BACKGROUND_SERVICE_CHANNEL_DESC = "Поддерживает приложение активным в фоне"
         const val BACKGROUND_SERVICE_NOTIFICATION_ID = 888
-        
+
         // Хранилище сообщений для каждого чата (chatId -> список сообщений)
         private val chatMessages = mutableMapOf<Long, MutableList<MessageData>>()
         // Хранилище Person для каждого отправителя (senderKey -> Person)
@@ -73,7 +73,7 @@ class NotificationHelper(private val context: Context) {
             notificationManager.createNotificationChannel(channel)
         }
     }
-    
+
     private fun createBackgroundServiceChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val importance = NotificationManager.IMPORTANCE_MIN
@@ -88,7 +88,7 @@ class NotificationHelper(private val context: Context) {
             notificationManager.createNotificationChannel(channel)
         }
     }
-    
+
     // Очистить накопленные сообщения для чата (вызывается когда пользователь открыл чат)
     fun clearMessagesForChat(chatId: Long) {
         android.util.Log.d("NotificationHelper", "clearMessagesForChat вызван для chatId: $chatId")
@@ -96,7 +96,7 @@ class NotificationHelper(private val context: Context) {
         // Также отменяем уведомление
         cancelNotification(chatId)
     }
-    
+
     // Отменить уведомление для чата
     fun cancelNotification(chatId: Long) {
         val notificationId = chatId.hashCode()
@@ -125,10 +125,10 @@ class NotificationHelper(private val context: Context) {
     ) {
         // Преобразуем Long в Int для notification ID (используем hashCode)
         val notificationId = chatId.hashCode()
-        
+
         // Создаём ключ для отправителя
         val senderKey = "sender_${senderName.hashCode()}_$chatId"
-        
+
         // Создаём круглую аватарку
         val avatarBitmap = avatarPath?.let { path ->
             val file = File(path)
@@ -151,7 +151,7 @@ class NotificationHelper(private val context: Context) {
 
             personBuilder.build()
         }
-        
+
         // Добавляем сообщение в историю чата
         val messageData = MessageData(
             senderName = senderName,
@@ -159,10 +159,10 @@ class NotificationHelper(private val context: Context) {
             timestamp = System.currentTimeMillis(),
             senderKey = senderKey
         )
-        
+
         val messages = chatMessages.getOrPut(chatId) { mutableListOf() }
         messages.add(messageData)
-        
+
         // Ограничиваем количество сообщений (последние 10)
         if (messages.size > 10) {
             messages.removeAt(0)
@@ -172,7 +172,7 @@ class NotificationHelper(private val context: Context) {
         val shortcutId = "shortcut_chat_$notificationId"
         // Для групп shortcut показывает название группы, для личных - имя отправителя
         val shortcutLabel = if (isGroupChat && groupTitle != null) groupTitle else senderName
-        
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val shortcut = ShortcutInfoCompat.Builder(context, shortcutId)
                 .setShortLabel(shortcutLabel)
@@ -203,7 +203,7 @@ class NotificationHelper(private val context: Context) {
         val messagingStyle = NotificationCompat.MessagingStyle(mePerson)
             .setConversationTitle(conversationTitle)
             .setGroupConversation(isGroupChat)
-        
+
         // Добавляем все накопленные сообщения
         for (msg in messages) {
             val msgPerson = when (msg.senderKey) {
@@ -301,7 +301,7 @@ class NotificationHelper(private val context: Context) {
         // Показываем уведомление
         try {
             NotificationManagerCompat.from(context).notify(notificationId, builder.build())
-            
+
             // Если есть несколько сообщений в этом чате, создаём summary notification
             if (messages.size > 1) {
                 createGroupSummaryNotification(chatId, groupKey, messages.size, shortcutLabel)
@@ -472,7 +472,7 @@ class NotificationHelper(private val context: Context) {
         chatTitle: String
     ) {
         val summaryNotificationId = (chatId.hashCode() + 1000000) // Уникальный ID для summary
-        
+
         val summaryBuilder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.notification_icon)
             .setContentTitle(chatTitle)
@@ -481,7 +481,7 @@ class NotificationHelper(private val context: Context) {
             .setGroupSummary(true)
             .setAutoCancel(true)
             .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
-        
+
         try {
             NotificationManagerCompat.from(context).notify(summaryNotificationId, summaryBuilder.build())
         } catch (e: SecurityException) {
@@ -517,7 +517,7 @@ class NotificationHelper(private val context: Context) {
 
         return output
     }
-    
+
     // Обновить уведомление фонового сервиса с кнопкой действия
     fun updateForegroundServiceNotification(title: String, content: String) {
         try {
@@ -534,37 +534,37 @@ class NotificationHelper(private val context: Context) {
                     data = android.net.Uri.parse("package:${context.packageName}")
                 }
             }
-            
+
             val settingsPendingIntent = PendingIntent.getActivity(
                 context,
                 0,
                 settingsIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            
-            val compactTitle = "$title активен" // "Komet активен" 
-            
+
+            val compactTitle = "$title активен" // "Komet активен"
+
             val expandedStyle = NotificationCompat.BigTextStyle()
                 .bigText("Нажмите, чтобы отключить это уведомление")
                 .setSummaryText(null)
-            
+
             val builder = NotificationCompat.Builder(context, BACKGROUND_SERVICE_CHANNEL_ID)
                 .setSmallIcon(R.drawable.notification_icon)
-                .setContentTitle(compactTitle) // "Komet Активно" 
+                .setContentTitle(compactTitle) // "Komet Активно"
                 .setStyle(expandedStyle)
                 .setPriority(NotificationCompat.PRIORITY_MIN)
                 .setOngoing(true) // Уведомление нельзя смахнуть
                 .setCategory(NotificationCompat.CATEGORY_SERVICE)
-                .setShowWhen(false) 
-                .setOnlyAlertOnce(true) 
+                .setShowWhen(false)
+                .setOnlyAlertOnce(true)
                 .setContentIntent(settingsPendingIntent) // При нажатии на уведомление открываем настройки канала
-            
+
             // Показываем уведомление
             NotificationManagerCompat.from(context).notify(
                 BACKGROUND_SERVICE_NOTIFICATION_ID,
                 builder.build()
             )
-            
+
             android.util.Log.d("NotificationHelper", "Уведомление фонового сервиса обновлено с кнопкой действия")
         } catch (e: Exception) {
             android.util.Log.e("NotificationHelper", "Ошибка обновления уведомления фонового сервиса: ${e.message}")

@@ -9,16 +9,16 @@ import io.flutter.plugin.common.MethodChannel
 class NotificationReplyReceiver : BroadcastReceiver() {
     companion object {
         private var methodChannel: MethodChannel? = null
-        
+
         fun setMethodChannel(channel: MethodChannel) {
             methodChannel = channel
             android.util.Log.d("NotificationReplyReceiver", "MethodChannel set")
         }
     }
-    
+
     override fun onReceive(context: Context, intent: Intent) {
         android.util.Log.d("NotificationReplyReceiver", "onReceive called, action: ${intent.action}")
-        
+
         if (intent.action == "com.gwid.app.REPLY_ACTION") {
             val remoteInput = RemoteInput.getResultsFromIntent(intent)
             if (remoteInput != null) {
@@ -29,9 +29,9 @@ class NotificationReplyReceiver : BroadcastReceiver() {
                 val groupTitle = intent.getStringExtra("group_title")
                 val myName = intent.getStringExtra("my_name")
                 val avatarPath = intent.getStringExtra("avatar_path")
-                
+
                 android.util.Log.d("NotificationReplyReceiver", "Reply text: $replyText, chatId: $chatId")
-                
+
                 if (replyText != null && replyText.isNotEmpty() && chatId != 0L) {
                     // Send reply via existing MethodChannel
                     try {
@@ -78,7 +78,7 @@ class NotificationReplyReceiver : BroadcastReceiver() {
             }
         }
     }
-    
+
     private fun savePendingReply(context: Context, chatId: Long, text: String) {
         try {
             val prefs = context.getSharedPreferences("flutter_notification_replies", Context.MODE_PRIVATE)
