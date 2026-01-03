@@ -919,6 +919,47 @@ class _ChatsScreenState extends State<ChatsScreen>
         continue;
       }
 
+      // Поиск по каналам
+      if (chat.type == 'CHANNEL') {
+        final channelTitle = chat.title ?? '';
+        final channelDescription = chat.description ?? '';
+
+        if (channelTitle.toLowerCase().contains(query) ||
+            channelDescription.toLowerCase().contains(query) ||
+            'канал'.contains(query)) {
+          results.add(
+            SearchResult(
+              chat: chat,
+              contact: null, // Для каналов contact = null
+              matchedText: channelTitle.isNotEmpty ? channelTitle : 'Канал',
+              matchType: channelTitle.toLowerCase().contains(query) ? 'name' : 'description',
+            ),
+          );
+        }
+        continue;
+      }
+
+      // Поиск по группам
+      if (_isGroupChat(chat)) {
+        final groupTitle = chat.title ?? '';
+        final groupDescription = chat.description ?? '';
+
+        if (groupTitle.toLowerCase().contains(query) ||
+            groupDescription.toLowerCase().contains(query) ||
+            'группа'.contains(query)) {
+          results.add(
+            SearchResult(
+              chat: chat,
+              contact: null, // Для групп contact = null
+              matchedText: groupTitle.isNotEmpty ? groupTitle : 'Группа',
+              matchType: groupTitle.toLowerCase().contains(query) ? 'name' : 'description',
+            ),
+          );
+        }
+        continue;
+      }
+
+      // Поиск по личным чатам (контактам)
       final otherParticipantId = chat.participantIds.firstWhere(
         (id) => id != chat.ownerId,
         orElse: () => 0,
@@ -1335,16 +1376,24 @@ class _ChatsScreenState extends State<ChatsScreen>
       ],
     );
 
-    if (widget.hasScaffold) {
-      return ChatsScreenScaffold(
-        bodyContent: bodyContent,
-        buildAppBar: _buildAppBar,
-        buildAppDrawer: _buildAppDrawer,
-        onAddPressed: widget.isForwardMode ? null : () => _showAddMenu(context),
-      );
-    } else {
-      return bodyContent;
-    }
+    final content = widget.hasScaffold
+        ? ChatsScreenScaffold(
+            bodyContent: bodyContent,
+            buildAppBar: _buildAppBar,
+            buildAppDrawer: _buildAppDrawer,
+            onAddPressed: widget.isForwardMode ? null : () => _showAddMenu(context),
+          )
+        : bodyContent;
+
+    return PopScope(
+      canPop: !_isSearchExpanded,
+      onPopInvoked: (didPop) {
+        if (!didPop && _isSearchExpanded) {
+          _clearSearch();
+        }
+      },
+      child: content,
+    );
   }
 
   Widget _buildAppDrawer(BuildContext context) {
@@ -1995,35 +2044,51 @@ class _ChatsScreenState extends State<ChatsScreen>
     final chat = result.chat;
     final contact = result.contact;
 
-    if (contact == null) return const SizedBox.shrink();
+    final bool isSavedMessages = _isSavedMessages(chat);
+    final bool isGroupChat = _isGroupChat(chat);
+    final bool isChannel = chat.type == 'CHANNEL';
+
+    // Для каналов и групп создаем временный контакт
+    Contact? contactToUse = contact;
+    if (contact == null && (isChannel || isGroupChat)) {
+      contactToUse = Contact(
+        id: chat.id,
+        name: isChannel ? (chat.title ?? 'Канал') : (chat.title ?? 'Группа'),
+        firstName: "",
+        lastName: "",
+        photoBaseUrl: chat.baseIconUrl,
+        description: chat.description,
+        isBlocked: false,
+        isBlockedByMe: false,
+      );
+    }
+
+    if (contactToUse == null) return const SizedBox.shrink();
+
+    final Contact contactToUseFinal = isSavedMessages
+        ? Contact(
+            id: chat.id,
+            name: "Избранное",
+            firstName: "",
+            lastName: "",
+            photoBaseUrl: null,
+            description: null,
+            isBlocked: false,
+            isBlockedByMe: false,
+          )
+        : contactToUse;
 
     return ListTile(
       onTap: () {
-        final bool isSavedMessages = _isSavedMessages(chat);
-        final bool isGroupChat = _isGroupChat(chat);
-        final bool isChannel = chat.type == 'CHANNEL';
         final participantCount =
             chat.participantsCount ?? chat.participantIds.length;
-
-        final Contact contactToUse = isSavedMessages
-            ? Contact(
-                id: chat.id,
-                name: "Избранное",
-                firstName: "",
-                lastName: "",
-                photoBaseUrl: null,
-                description: null,
-                isBlocked: false,
-                isBlockedByMe: false,
-              )
-            : contact;
 
         if (widget.isForwardMode && widget.onForwardChatSelected != null) {
           widget.onForwardChatSelected!(chat);
         } else if (widget.onChatSelected != null) {
           widget.onChatSelected!(
             chat,
-            contactToUse,
+            contactToUseFinal,
             isGroupChat,
             isChannel,
             participantCount,
@@ -2033,7 +2098,7 @@ class _ChatsScreenState extends State<ChatsScreen>
             MaterialPageRoute(
               builder: (context) => ChatScreen(
                 chatId: chat.id,
-                contact: contactToUse,
+                contact: contactToUseFinal,
                 myId: chat.ownerId,
                 pinnedMessage: chat.pinnedMessage,
                 isGroupChat: isGroupChat,
@@ -2050,22 +2115,22 @@ class _ChatsScreenState extends State<ChatsScreen>
       leading: CircleAvatar(
         radius: 24,
         backgroundColor: colors.primaryContainer,
-        backgroundImage: contact.photoBaseUrl != null
-            ? CachedNetworkImageProvider(contact.photoBaseUrl ?? '')
+        backgroundImage: contactToUseFinal.photoBaseUrl != null
+            ? CachedNetworkImageProvider(contactToUseFinal.photoBaseUrl ?? '')
             : null,
-        child: contact.photoBaseUrl == null
+        child: contactToUseFinal.photoBaseUrl == null
             ? Text(
-                contact.name.isNotEmpty ? contact.name[0].toUpperCase() : '?',
+                contactToUseFinal.name.isNotEmpty ? contactToUseFinal.name[0].toUpperCase() : '?',
                 style: TextStyle(color: colors.onPrimaryContainer),
               )
             : null,
       ),
       title: _buildHighlightedText(
         getContactDisplayName(
-          contactId: contact.id,
-          originalName: contact.name,
-          originalFirstName: contact.firstName,
-          originalLastName: contact.lastName,
+          contactId: contactToUseFinal.id,
+          originalName: contactToUseFinal.name,
+          originalFirstName: contactToUseFinal.firstName,
+          originalLastName: contactToUseFinal.lastName,
         ),
         result.matchedText,
       ),
@@ -2078,7 +2143,7 @@ class _ChatsScreenState extends State<ChatsScreen>
                 : _buildSearchMessagePreview(chat, result.matchedText),
           if (result.matchType == 'description')
             _buildHighlightedText(
-              contact.description ?? '',
+              contactToUseFinal.description ?? '',
               result.matchedText,
             ),
           const SizedBox(height: 4),

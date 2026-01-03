@@ -1996,7 +1996,6 @@ class _ChatScreenState extends State<ChatScreen> {
       _sendingReactions.add(messageId);
 
       _buildChatItems();
-      _buildChatItems();
 
       if (mounted) {
         setState(() {});
@@ -2156,21 +2155,35 @@ class _ChatScreenState extends State<ChatScreen> {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     final showDeletedMessages = themeProvider.showDeletedMessages;
 
-    if (showDeletedMessages) {
-      // Если включено показ удаленных сообщений, помечаем их как удаленные
-      for (final messageId in deletedMessageIds) {
-        final messageIndex = _messages.indexWhere((m) => m.id == messageId);
-        if (messageIndex != -1) {
-          _messages[messageIndex] = _messages[messageIndex].copyWith(isDeleted: true);
+    for (final messageId in deletedMessageIds) {
+      // Пропускаем сообщения, которые уже в процессе удаления
+      if (_deletingMessageIds.contains(messageId)) {
+        continue;
+      }
+
+      final messageIndex = _messages.indexWhere((m) => m.id == messageId);
+      if (messageIndex != -1) {
+        final message = _messages[messageIndex];
+        final isMyMessage = message.senderId == _actualMyId;
+
+        if (isMyMessage) {
+          // Если это наше сообщение - удаляем его независимо от настроек
+          _removeMessages([messageId]);
+        } else {
+          // Если это чужое сообщение - применяем логику showDeletedMessages
+          if (showDeletedMessages) {
+            // Помечаем как удаленное
+            _messages[messageIndex] = message.copyWith(isDeleted: true);
+            _buildChatItems();
+            if (mounted) {
+              setState(() {});
+            }
+          } else {
+            // Удаляем из списка
+            _removeMessages([messageId]);
+          }
         }
       }
-      _buildChatItems();
-      if (mounted) {
-        setState(() {});
-      }
-    } else {
-      // Если выключено, просто удаляем сообщения
-      _removeMessages(deletedMessageIds);
     }
   }
 
@@ -2180,7 +2193,6 @@ class _ChatScreenState extends State<ChatScreen> {
     if (mounted) {
       setState(() {});
     }
-    _buildChatItems();
 
     Future.delayed(const Duration(milliseconds: 300), () {
       final removedCount = _messages.length;
@@ -2196,11 +2208,9 @@ class _ChatScreenState extends State<ChatScreen> {
         }
         _buildChatItems();
 
-        Future.microtask(() {
-          if (mounted) {
-            setState(() {});
-          }
-        });
+        if (mounted) {
+          setState(() {});
+        }
       }
     });
   }
@@ -2585,6 +2595,7 @@ class _ChatScreenState extends State<ChatScreen> {
               text: newText.trim(),
               status: 'EDITED',
               updateTime: DateTime.now().millisecondsSinceEpoch,
+              originalText: message.originalText ?? message.text,
             );
             _updateMessage(optimistic);
 
@@ -3138,6 +3149,15 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  bool _isCurrentUserAdmin() {
+    final currentChat = _getCurrentGroupChat();
+    if (currentChat != null && _actualMyId != null) {
+      final admins = currentChat['admins'] as List<dynamic>? ?? [];
+      return admins.contains(_actualMyId);
+    }
+    return false;
+  }
+
   Future<void> _setChatWallpaper(String imagePath) async {
     try {
       final theme = context.read<ThemeProvider>();
@@ -3431,6 +3451,9 @@ class _ChatScreenState extends State<ChatScreen> {
                                       final bool isMe =
                                           item.message.senderId == _actualMyId;
 
+                                      // Расчет прав на удаление сообщений для всех
+                                      final bool canDeleteForAll = isMe || (widget.isGroupChat && _isCurrentUserAdmin());
+
                                       MessageReadStatus? readStatus;
                                       if (isMe) {
                                         final messageId = item.message.id;
@@ -3608,9 +3631,11 @@ class _ChatScreenState extends State<ChatScreen> {
                                             : null,
                                         onDeleteForMe: isMe
                                             ? () async {
+                                                // Для "удалить для меня" удаляем сообщение из списка с анимацией
                                                 _removeMessages([
                                                   item.message.id,
                                                 ]);
+
                                                 await ApiService.instance
                                                     .deleteMessage(
                                                       widget.chatId,
@@ -3621,7 +3646,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                                 widget.onLastMessageChanged?.call(newLastMessage);
                                               }
                                             : null,
-                                        onDeleteForAll: isMe
+                                        onDeleteForAll: canDeleteForAll
                                             ? () async {
                                                 _removeMessages([
                                                   item.message.id,
@@ -3704,6 +3729,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                             : null,
                                         allPhotos: _cachedAllPhotos,
                                         onGoToMessage: _scrollToMessage,
+                                        canDeleteForAll: canDeleteForAll,
                                       );
 
                                       Widget finalMessageWidget =

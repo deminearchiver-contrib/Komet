@@ -136,6 +136,8 @@ class Message {
       'link': link,
       'reactionInfo': reactionInfo,
       'elements': elements,
+      'isDeleted': isDeleted,
+      'originalText': originalText,
     };
   }
 }

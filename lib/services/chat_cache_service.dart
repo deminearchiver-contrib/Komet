@@ -187,9 +187,11 @@ class ChatCacheService {
               'link': message.link,
               'isDeleted': message.isDeleted,
               'originalText': message.originalText,
+              'elements': message.elements, // Добавлено для полноты
             },
           )
           .toList();
+
 
       await _cacheService.set(key, messagesData, ttl: _messagesTTL);
       print('Кэшировано ${messages.length} сообщений для чата $chatId');
@@ -322,6 +324,8 @@ class ChatCacheService {
           'cid': lastMessage.cid,
           'reactionInfo': lastMessage.reactionInfo,
           'link': lastMessage.link,
+          'isDeleted': lastMessage.isDeleted,
+          'originalText': lastMessage.originalText,
         };
         await _cacheService.set(key, messageData, ttl: _chatsTTL);
       } else {

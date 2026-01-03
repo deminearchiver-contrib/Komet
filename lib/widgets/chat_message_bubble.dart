@@ -117,6 +117,7 @@ class ChatMessageBubble extends StatelessWidget {
   final bool? canEditMessage;
   final bool isGroupChat;
   final bool isChannel;
+  final bool canDeleteForAll;
   final String? senderName;
   final String? forwardedFrom;
   final String? forwardedFromAvatarUrl;
@@ -157,6 +158,7 @@ class ChatMessageBubble extends StatelessWidget {
     this.canEditMessage,
     this.isGroupChat = false,
     this.isChannel = false,
+    this.canDeleteForAll = false,
     this.senderName,
     this.forwardedFrom,
     this.forwardedFromAvatarUrl,
@@ -753,6 +755,8 @@ class ChatMessageBubble extends StatelessWidget {
           canEditMessage: canEditMessage ?? false,
           hasUserReaction: hasUserReaction,
           isChannel: isChannel,
+          isGroupChat: isGroupChat,
+          canDeleteForAll: canDeleteForAll,
           isPending: isPendingMessage,
           onCancelSend: onCancelSend,
           onRetrySend: onRetrySend,
@@ -1303,17 +1307,6 @@ class ChatMessageBubble extends StatelessWidget {
     );
   }
 
-  Future<bool> _isMusicTrackRegistered(int fileId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final musicMetadataJson = prefs.getString('music_metadata') ?? '{}';
-      final musicMetadata =
-          jsonDecode(musicMetadataJson) as Map<String, dynamic>;
-      return musicMetadata.containsKey(fileId.toString());
-    } catch (_) {
-      return false;
-    }
-  }
 
   Widget _buildStickerOnlyMessage(BuildContext context) {
     final sticker = message.attaches.firstWhere((a) => a['_type'] == 'STICKER');
@@ -1405,7 +1398,12 @@ class ChatMessageBubble extends StatelessWidget {
 
     Uint8List? previewBytes;
     if (previewDataRaw is List<int>) {
-      previewBytes = Uint8List.fromList(previewDataRaw);
+      // Ограничение на размер previewData для предотвращения зависания
+      if (previewDataRaw.length > 50000) { // 50KB limit
+        print('⚠️ PreviewData слишком большой (${previewDataRaw.length} bytes), пропускаем');
+      } else {
+        previewBytes = Uint8List.fromList(previewDataRaw);
+      }
     } else if (previewData != null && previewData.startsWith('data:')) {
       final idx = previewData.indexOf('base64,');
       if (idx != -1) {
@@ -2139,7 +2137,13 @@ class ChatMessageBubble extends StatelessWidget {
         }
       } else if (previewDataRaw is List<dynamic>) {
         try {
-          previewBytes = Uint8List.fromList(List<int>.from(previewDataRaw));
+          final intList = List<int>.from(previewDataRaw);
+          // Ограничение на размер previewData для предотвращения зависания
+          if (intList.length > 50000) { // 50KB limit
+            print('⚠️ PreviewData слишком большой (${intList.length} bytes), пропускаем');
+          } else {
+            previewBytes = Uint8List.fromList(intList);
+          }
         } catch (_) {}
       }
 
@@ -4319,6 +4323,12 @@ class ChatMessageBubble extends StatelessWidget {
     Future<void> Function(LinkableElement) onOpenLink,
     VoidCallback onSenderNameTap,
   ) {
+    // Ограничение на количество attaches для предотвращения зависания
+    final attachesToShow = message.attaches.take(10).toList(); // Максимум 10 attaches
+    if (message.attaches.length > attachesToShow.length) {
+      print('⚠️ Слишком много attaches (${message.attaches.length}), показываем только первые ${attachesToShow.length}');
+    }
+
     return [
       if (isGroupChat && !isMe && senderName != null)
         MouseRegion(
@@ -4368,45 +4378,45 @@ class ChatMessageBubble extends StatelessWidget {
             ),
           const SizedBox(height: 8),
         ],
-        if (message.attaches.isNotEmpty) ...[
+        if (attachesToShow.isNotEmpty) ...[
           ..._buildCallsWithCaption(
             context,
-            message.attaches,
+            attachesToShow,
             textColor,
             isUltraOptimized,
             messageTextOpacity,
           ),
           ..._buildAudioWithCaption(
             context,
-            message.attaches,
+            attachesToShow,
             textColor,
             isUltraOptimized,
             messageTextOpacity,
           ),
           ..._buildPhotosWithCaption(
             context,
-            message.attaches,
+            attachesToShow,
             textColor,
             isUltraOptimized,
             messageTextOpacity,
           ),
           ..._buildVideosWithCaption(
             context,
-            message.attaches,
+            attachesToShow,
             textColor,
             isUltraOptimized,
             messageTextOpacity,
           ),
           ..._buildStickersWithCaption(
             context,
-            message.attaches,
+            attachesToShow,
             textColor,
             isUltraOptimized,
             messageTextOpacity,
           ),
           ..._buildFilesWithCaption(
             context,
-            message.attaches,
+            attachesToShow,
             textColor,
             isUltraOptimized,
             messageTextOpacity,
@@ -4414,7 +4424,7 @@ class ChatMessageBubble extends StatelessWidget {
           ),
           ..._buildContactsWithCaption(
             context,
-            message.attaches,
+            attachesToShow,
             textColor,
             isUltraOptimized,
             messageTextOpacity,
@@ -4502,17 +4512,17 @@ class ChatMessageBubble extends StatelessWidget {
           if (message.reactionInfo != null) const SizedBox(height: 4),
         ],
       ],
-      ..._buildInlineKeyboard(context, message.attaches, textColor),
+      ..._buildInlineKeyboard(context, attachesToShow, textColor),
       _buildReactionsWidget(context, textColor),
       const SizedBox(height: 8.0),
       Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (isMe) ...[
-            if (message.attaches.any((a) => a['_type'] == 'PHOTO')) ...[
+            if (attachesToShow.any((a) => a['_type'] == 'PHOTO')) ...[
               Builder(
                 builder: (context) {
-                  final url = _extractFirstPhotoUrl(message.attaches);
+                  final url = _extractFirstPhotoUrl(attachesToShow);
                   if (url == null || url.startsWith('file://')) {
                     return const SizedBox.shrink();
                   }
@@ -4742,10 +4752,19 @@ class ChatMessageBubble extends StatelessWidget {
     Future<void> Function(LinkableElement) onOpenLink, {
     List<Map<String, dynamic>> elements = const [],
   }) {
+    // Ограничение на размер текста для предотвращения зависания
+    const int maxTextLength = 10000; // 10KB limit for text
+    if (text.length > maxTextLength) {
+      print('⚠️ Сообщение слишком большое (${text.length} символов), обрезаем до $maxTextLength');
+      text = text.substring(0, maxTextLength) + '... (сообщение обрезано)';
+    }
+
     final segments = _parseMixedMessageSegments(text);
 
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 2.0, // Add spacing between segments
+      runSpacing: 2.0, // Add spacing between lines
       children: segments.map((seg) {
         switch (seg.type) {
           case KometSegmentType.normal:
@@ -4755,31 +4774,46 @@ class ChatMessageBubble extends StatelessWidget {
                 : baseStyle;
 
             if (elements.isEmpty) {
-              return Linkify(
-                text: seg.text,
-                style: baseForSeg,
-                linkStyle: linkStyle,
-                onOpen: onOpenLink,
-                options: const LinkifyOptions(humanize: false),
-                linkifiers: const [
-                  UrlLinkifier(),
-                  EmailLinkifier(),
-                  DomainLinkifier(),
-                ],
+              return Container(
+                constraints: const BoxConstraints(maxWidth: double.infinity),
+                child: Linkify(
+                  text: seg.text,
+                  style: baseForSeg,
+                  linkStyle: linkStyle,
+                  onOpen: onOpenLink,
+                  options: const LinkifyOptions(humanize: false),
+                  linkifiers: const [
+                    UrlLinkifier(),
+                    EmailLinkifier(),
+                    DomainLinkifier(),
+                  ],
+                  textAlign: TextAlign.left,
+                  overflow: TextOverflow.visible,
+                  softWrap: true,
+                ),
               );
             } else {
-              return _buildFormattedRichText(seg.text, baseForSeg, elements);
+              return Container(
+                constraints: const BoxConstraints(maxWidth: double.infinity),
+                child: _buildFormattedRichText(seg.text, baseForSeg, elements),
+              );
             }
           case KometSegmentType.galaxy:
-            return GalaxyAnimatedText(text: seg.text);
+            return Container(
+              constraints: const BoxConstraints(maxWidth: double.infinity),
+              child: GalaxyAnimatedText(text: seg.text),
+            );
           case KometSegmentType.pulse:
             final hexStr = seg.color!.value
                 .toRadixString(16)
                 .padLeft(8, '0')
                 .substring(2)
                 .toUpperCase();
-            return PulseAnimatedText(
-              text: "komet.cosmetic.pulse#$hexStr'${seg.text}'",
+            return Container(
+              constraints: const BoxConstraints(maxWidth: double.infinity),
+              child: PulseAnimatedText(
+                text: "komet.cosmetic.pulse#$hexStr'${seg.text}'",
+              ),
             );
         }
       }).toList(),
@@ -4792,7 +4826,13 @@ class ChatMessageBubble extends StatelessWidget {
     List<Map<String, dynamic>> elements,
   ) {
     if (text.isEmpty || elements.isEmpty) {
-      return Text(text, style: baseStyle);
+      return Text(
+        text,
+        style: baseStyle,
+        textAlign: TextAlign.left,
+        softWrap: true,
+        overflow: TextOverflow.visible,
+      );
     }
 
     final bold = List<bool>.filled(text.length, false);
@@ -4854,6 +4894,8 @@ class ChatMessageBubble extends StatelessWidget {
     return Text.rich(
       TextSpan(children: spans, style: baseStyle),
       textAlign: TextAlign.left,
+      softWrap: true,
+      overflow: TextOverflow.visible,
     );
   }
 
@@ -4929,7 +4971,8 @@ class ChatMessageBubble extends StatelessWidget {
 
     return Container(
       constraints: BoxConstraints(
-        maxWidth: MediaQuery.of(context).size.width * 0.65,
+        maxWidth: MediaQuery.of(context).size.width * 0.8, // Increased from 0.65 to 0.8
+        minWidth: 0, // Allow shrinking to zero
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4.5),
       margin: _getMessageMargin(context),
@@ -5093,195 +5136,6 @@ class ChatMessageBubble extends StatelessWidget {
     } else {
       return '${dateTime.day.toString().padLeft(2, '0')}.${dateTime.month.toString().padLeft(2, '0')}.${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
     }
-  }
-}
-
-class _SendingMessageContextMenu extends StatefulWidget {
-  final Message message;
-  final Offset position;
-  final VoidCallback? onRetrySend;
-  final VoidCallback? onCancelSend;
-
-  const _SendingMessageContextMenu({
-    required this.message,
-    required this.position,
-    this.onRetrySend,
-    this.onCancelSend,
-  });
-
-  @override
-  State<_SendingMessageContextMenu> createState() =>
-      _SendingMessageContextMenuState();
-}
-
-class _SendingMessageContextMenuState
-    extends State<_SendingMessageContextMenu> {
-  Timer? _statusCheckTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkMessageStatus();
-    });
-
-    _statusCheckTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
-      _checkMessageStatus();
-    });
-  }
-
-  @override
-  void dispose() {
-    _statusCheckTimer?.cancel();
-    super.dispose();
-  }
-
-  void _checkMessageStatus() {
-    // Если сообщение больше не в состоянии sending, закрываем диалог
-    if (!widget.message.id.startsWith('local_') && mounted) {
-      Navigator.of(context).pop();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Дополнительная проверка при каждом rebuild
-    if (!widget.message.id.startsWith('local_')) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          Navigator.of(context).pop();
-        }
-      });
-      return const SizedBox.shrink();
-    }
-    final screenSize = MediaQuery.of(context).size;
-
-    double left = widget.position.dx - 75;
-    if (left + 150 > screenSize.width - 10) {
-      left = screenSize.width - 160;
-    }
-    if (left < 10) {
-      left = 10;
-    }
-
-    double top = widget.position.dy - 60;
-    if (top < 10) {
-      top = widget.position.dy + 20;
-    }
-    if (top + 100 > screenSize.height - 10) {
-      top = screenSize.height - 110;
-    }
-
-    return Scaffold(
-      backgroundColor: Colors.black.withOpacity(0.1),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              child: Container(color: Colors.transparent),
-            ),
-          ),
-          Positioned(
-            top: top,
-            left: left,
-            child: Container(
-              width: 150,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  InkWell(
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      widget.onRetrySend?.call();
-                    },
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(12),
-                      topRight: Radius.circular(12),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.refresh,
-                            size: 20,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Повторить',
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.onSurface,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Divider(
-                    height: 1,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.outline.withOpacity(0.2),
-                  ),
-                  InkWell(
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      widget.onCancelSend?.call();
-                    },
-                    borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(12),
-                      bottomRight: Radius.circular(12),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.close,
-                            size: 20,
-                            color: Theme.of(context).colorScheme.error,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Отменить',
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -5786,6 +5640,8 @@ class _MessageContextMenu extends StatefulWidget {
   final bool canEditMessage;
   final bool hasUserReaction;
   final bool isChannel;
+  final bool isGroupChat;
+  final bool canDeleteForAll;
   final bool isPending;
   final VoidCallback? onCancelSend;
   final VoidCallback? onRetrySend;
@@ -5804,6 +5660,8 @@ class _MessageContextMenu extends StatefulWidget {
     required this.canEditMessage,
     required this.hasUserReaction,
     this.isChannel = false,
+    this.isGroupChat = false,
+    required this.canDeleteForAll,
     required this.isPending,
     this.onCancelSend,
     this.onRetrySend,
@@ -6478,7 +6336,7 @@ class _MessageContextMenuState extends State<_MessageContextMenu>
               widget.onDeleteForMe!();
             },
           ),
-        if (widget.onDeleteForAll != null)
+        if (widget.canDeleteForAll)
           _buildActionButton(
             icon: Icons.delete_forever_rounded,
             text: 'Удалить у всех',
