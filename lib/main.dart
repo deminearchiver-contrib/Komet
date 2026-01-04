@@ -3,7 +3,9 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:gwid/widgets/raw_material_app.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'dart:io';
 import 'dart:math';
 import 'screens/home_screen.dart';
@@ -28,7 +30,67 @@ import 'package:uuid/uuid.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'utils/device_presets.dart';
 
+import 'package:libmonet/material_color_utilities.dart' as mcu;
+
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+extension DynamicSchemeExtension on mcu.DynamicScheme {
+  ColorScheme toColorScheme() => ColorScheme(
+    brightness: isDark ? Brightness.dark : Brightness.light,
+    // ignore: deprecated_member_use
+    background: Color(background),
+    // ignore: deprecated_member_use
+    onBackground: Color(onBackground),
+    surface: Color(surface),
+    surfaceDim: Color(surfaceDim),
+    surfaceBright: Color(surfaceBright),
+    surfaceContainerLowest: Color(surfaceContainerLowest),
+    surfaceContainerLow: Color(surfaceContainerLow),
+    surfaceContainer: Color(surfaceContainer),
+    surfaceContainerHigh: Color(surfaceContainerHigh),
+    surfaceContainerHighest: Color(surfaceContainerHighest),
+    onSurface: Color(onSurface),
+    // ignore: deprecated_member_use
+    surfaceVariant: Color(surfaceVariant),
+    onSurfaceVariant: Color(onSurfaceVariant),
+    outline: Color(outline),
+    outlineVariant: Color(outlineVariant),
+    inverseSurface: Color(inverseSurface),
+    onInverseSurface: Color(inverseOnSurface),
+    shadow: Color(shadow),
+    scrim: Color(scrim),
+    surfaceTint: Color(surfaceTint),
+    primary: Color(primary),
+    onPrimary: Color(onPrimary),
+    primaryContainer: Color(primaryContainer),
+    onPrimaryContainer: Color(onPrimaryContainer),
+    primaryFixed: Color(primaryFixed),
+    primaryFixedDim: Color(primaryFixedDim),
+    onPrimaryFixed: Color(onPrimaryFixed),
+    onPrimaryFixedVariant: Color(onPrimaryFixedVariant),
+    inversePrimary: Color(inversePrimary),
+    secondary: Color(secondary),
+    onSecondary: Color(onSecondary),
+    secondaryContainer: Color(secondaryContainer),
+    onSecondaryContainer: Color(onSecondaryContainer),
+    secondaryFixed: Color(secondaryFixed),
+    secondaryFixedDim: Color(secondaryFixedDim),
+    onSecondaryFixed: Color(onSecondaryFixed),
+    onSecondaryFixedVariant: Color(onSecondaryFixedVariant),
+    tertiary: Color(tertiary),
+    onTertiary: Color(onTertiary),
+    tertiaryContainer: Color(tertiaryContainer),
+    onTertiaryContainer: Color(onTertiaryContainer),
+    tertiaryFixed: Color(tertiaryFixed),
+    tertiaryFixedDim: Color(tertiaryFixedDim),
+    onTertiaryFixed: Color(onTertiaryFixed),
+    onTertiaryFixedVariant: Color(onTertiaryFixedVariant),
+    error: Color(error),
+    onError: Color(onError),
+    errorContainer: Color(errorContainer),
+    onErrorContainer: Color(onErrorContainer),
+  );
+}
 
 Future<void> _generateInitialAndroidSpoof() async {
   try {
@@ -163,6 +225,144 @@ Future<void> main() async {
   );
 }
 
+enum CustomCheckboxVariant { phone, watch }
+
+enum CustomSwitchVariant { phone, watch, nowInAndroid }
+
+abstract final class LegacyThemeFactory {
+  static CheckboxThemeData createCheckboxTheme({
+    required ColorScheme colorScheme,
+    required CustomCheckboxVariant variant,
+  }) {
+    final unselectedContainerColor = switch (variant) {
+      .phone => Colors.transparent,
+      .watch => colorScheme.surfaceContainer,
+    };
+
+    final selectedContainerColor = switch (variant) {
+      .phone => colorScheme.primary,
+      .watch => colorScheme.onPrimaryContainer,
+    };
+
+    final unselectedOutlineColor = switch (variant) {
+      .phone => colorScheme.onSurfaceVariant,
+      .watch => colorScheme.outline,
+    };
+
+    final selectedOutlineColor = switch (variant) {
+      .phone => colorScheme.primary,
+      .watch => colorScheme.onPrimaryContainer,
+    };
+
+    return CheckboxThemeData(
+      splashRadius: 40.0 / 2.0,
+      visualDensity: .standard,
+    );
+  }
+
+  static SwitchThemeData createSwitchTheme({
+    required ColorScheme colorScheme,
+    required CustomSwitchVariant variant,
+  }) {
+    final unselectedContainerColor = switch (variant) {
+      .phone => colorScheme.surfaceContainerHighest,
+      .watch => colorScheme.surfaceContainer,
+      .nowInAndroid => colorScheme.onSurfaceVariant,
+    };
+    final selectedContainerColor = switch (variant) {
+      .phone => colorScheme.primary,
+      .watch => colorScheme.onPrimaryContainer,
+      .nowInAndroid => colorScheme.onPrimaryContainer,
+    };
+
+    final unselectedOutlineColor = switch (variant) {
+      .phone => colorScheme.outline,
+      .watch => colorScheme.outline,
+      .nowInAndroid => colorScheme.onSurfaceVariant,
+    };
+    final selectedOutlineColor = switch (variant) {
+      .phone => colorScheme.primary,
+      .watch => colorScheme.onPrimaryContainer,
+      .nowInAndroid => colorScheme.onPrimaryContainer,
+    };
+
+    final unselectedHandleColor = switch (variant) {
+      .phone => colorScheme.outline,
+      .watch => colorScheme.outline,
+      .nowInAndroid => colorScheme.surfaceContainerHighest,
+    };
+    final selectedHandleColor = switch (variant) {
+      .phone => colorScheme.onPrimary,
+      .watch => colorScheme.primaryContainer,
+      .nowInAndroid => colorScheme.primaryContainer,
+    };
+
+    final unselectedIconColor = switch (variant) {
+      .phone => colorScheme.surfaceContainerHighest,
+      .watch => colorScheme.surfaceContainer,
+      .nowInAndroid => colorScheme.onSurfaceVariant,
+    };
+    final selectedIconColor = switch (variant) {
+      .phone => colorScheme.primary,
+      .watch => colorScheme.onPrimaryContainer,
+      .nowInAndroid => colorScheme.onPrimaryContainer,
+    };
+
+    return SwitchThemeData(
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      splashRadius: 40.0 / 2.0,
+      trackColor: WidgetStateColor.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? selectedContainerColor
+            : unselectedContainerColor,
+      ),
+      trackOutlineWidth: const WidgetStatePropertyAll(2.0),
+      trackOutlineColor: WidgetStateColor.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? selectedOutlineColor
+            : unselectedOutlineColor,
+      ),
+      thumbColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? selectedHandleColor
+            : unselectedHandleColor,
+      ),
+      // overlayColor: WidgetStateProperty.resolveWith((states) {
+      //   final stateLayerColor = states.contains(WidgetState.selected)
+      //       ? colorScheme.primaryContainer
+      //       : colorScheme.onSurfaceVariant;
+      //   final double stateLayerOpacity;
+      //   if (states.contains(WidgetState.disabled)) {
+      //     stateLayerOpacity = 0.0;
+      //   } else if (states.contains(WidgetState.pressed)) {
+      //     stateLayerOpacity = 0.10;
+      //   } else if (states.contains(WidgetState.focused)) {
+      //     stateLayerOpacity = 0.1;
+      //   } else if (states.contains(WidgetState.hovered)) {
+      //     stateLayerOpacity = 0.08;
+      //   } else {
+      //     stateLayerOpacity = 0.0;
+      //   }
+      //   return stateLayerOpacity > 0.0
+      //       ? stateLayerColor.withValues(alpha: stateLayerOpacity)
+      //       : stateLayerColor.withAlpha(0);
+      // }),
+      thumbIcon: WidgetStateProperty.resolveWith((states) {
+        final isSelected = states.contains(WidgetState.selected);
+        return Icon(
+          isSelected ? Symbols.check_rounded : Symbols.close_rounded,
+          applyTextScaling: false,
+          fill: 1.0,
+          weight: 400.0,
+          opticalSize: 24.0,
+          size: 16.0,
+          color: isSelected ? selectedIconColor : unselectedIconColor,
+        );
+      }),
+    );
+  }
+}
+
 class MyApp extends StatelessWidget {
   final bool hasToken;
 
@@ -172,8 +372,10 @@ class MyApp extends StatelessWidget {
     required ThemeProvider themeProvider,
     required ColorScheme colorScheme,
   }) {
+    final isWatch = themeProvider.appTheme == .black;
     return ThemeData(
       colorScheme: colorScheme,
+      visualDensity: .standard,
       shadowColor: themeProvider.optimization ? Colors.transparent : null,
       splashFactory: themeProvider.optimization
           ? NoSplash.splashFactory
@@ -189,50 +391,17 @@ class MyApp extends StatelessWidget {
         // Стиль текста заголовка
         titleTextStyle: TextStyle(
           fontSize: 16,
-          fontWeight: FontWeight.w600,
+          fontWeight: .w600,
           color: colorScheme.onSurface,
         ),
       ),
-      switchTheme: SwitchThemeData(
-        materialTapTargetSize: MaterialTapTargetSize.padded,
-        thumbIcon: const WidgetStatePropertyAll(null),
-        splashRadius: 40.0 / 2.0,
-        trackColor: WidgetStateColor.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? colorScheme.onPrimaryContainer
-              : colorScheme.onSurfaceVariant,
-        ),
-        trackOutlineWidth: const WidgetStatePropertyAll(0.0),
-        trackOutlineColor: WidgetStateColor.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? colorScheme.onPrimaryContainer
-              : colorScheme.onSurfaceVariant,
-        ),
-        thumbColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? colorScheme.primaryContainer
-              : colorScheme.surfaceContainerHighest,
-        ),
-        overlayColor: WidgetStateProperty.resolveWith((states) {
-          final stateLayerColor = states.contains(WidgetState.selected)
-              ? colorScheme.primaryContainer
-              : colorScheme.onSurfaceVariant;
-          final double stateLayerOpacity;
-          if (states.contains(WidgetState.disabled)) {
-            stateLayerOpacity = 0.0;
-          } else if (states.contains(WidgetState.pressed)) {
-            stateLayerOpacity = 0.10;
-          } else if (states.contains(WidgetState.focused)) {
-            stateLayerOpacity = 0.1;
-          } else if (states.contains(WidgetState.hovered)) {
-            stateLayerOpacity = 0.08;
-          } else {
-            stateLayerOpacity = 0.0;
-          }
-          return stateLayerOpacity > 0.0
-              ? stateLayerColor.withValues(alpha: stateLayerOpacity)
-              : stateLayerColor.withAlpha(0);
-        }),
+      checkboxTheme: LegacyThemeFactory.createCheckboxTheme(
+        colorScheme: colorScheme,
+        variant: isWatch ? .watch : .phone,
+      ),
+      switchTheme: LegacyThemeFactory.createSwitchTheme(
+        colorScheme: colorScheme,
+        variant: isWatch ? .watch : .phone,
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: colorScheme.surfaceContainer,
@@ -244,24 +413,94 @@ class MyApp extends StatelessWidget {
       pageTransitionsTheme: themeProvider.optimization
           ? const PageTransitionsTheme(
               builders: {
-                TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
-                TargetPlatform.fuchsia: FadeUpwardsPageTransitionsBuilder(),
-                TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
-                TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
-                TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
-                TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
+                .android: FadeUpwardsPageTransitionsBuilder(),
+                .fuchsia: FadeUpwardsPageTransitionsBuilder(),
+                .iOS: FadeUpwardsPageTransitionsBuilder(),
+                .linux: FadeUpwardsPageTransitionsBuilder(),
+                .macOS: FadeUpwardsPageTransitionsBuilder(),
+                .windows: FadeUpwardsPageTransitionsBuilder(),
               },
             )
           : const PageTransitionsTheme(
               builders: {
-                TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
-                TargetPlatform.fuchsia: FadeForwardsPageTransitionsBuilder(),
-                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-                TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
-                TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
-                TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
+                .android: FadeForwardsPageTransitionsBuilder(),
+                .fuchsia: FadeForwardsPageTransitionsBuilder(),
+                .iOS: CupertinoPageTransitionsBuilder(),
+                .linux: FadeForwardsPageTransitionsBuilder(),
+                .macOS: CupertinoPageTransitionsBuilder(),
+                .windows: FadeForwardsPageTransitionsBuilder(),
               },
             ),
+    );
+  }
+
+  Widget _buildLegacyTheme(BuildContext context, Widget child) {
+    final themeProvider = context.watch<ThemeProvider>();
+    return DynamicColorBuilder(
+      builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
+        final Brightness brightness = switch (themeProvider.themeMode) {
+          .system => MediaQuery.platformBrightnessOf(context),
+          .light => .light,
+          .dark => .dark,
+        };
+
+        final useMaterialYou =
+            themeProvider.appTheme == .system &&
+            lightDynamic != null &&
+            darkDynamic != null;
+
+        final sourceColor = useMaterialYou
+            ? lightDynamic.primary
+            : themeProvider.accentColor;
+
+        final sourceColorHct = mcu.Hct.fromInt(sourceColor.toARGB32());
+
+        final colorScheme = useMaterialYou
+            ? switch (brightness) {
+                .light => lightDynamic,
+                .dark => darkDynamic,
+              }
+            : mcu.DynamicScheme.fromPalettesOrKeyColors(
+                isDark: brightness == .dark,
+                sourceColorHct: sourceColorHct,
+                contrastLevel: 0.0,
+                variant: .tonalSpot,
+                specVersion: .spec2025,
+                platform: themeProvider.appTheme == .black ? .watch : .phone,
+              ).toColorScheme();
+
+        var theme = _createTheme(
+          themeProvider: themeProvider,
+          colorScheme: colorScheme,
+        );
+
+        if (themeProvider.appTheme == .black) {
+          theme = theme.copyWith(
+            scaffoldBackgroundColor: Colors.black,
+            navigationBarTheme: NavigationBarThemeData(
+              backgroundColor: Colors.black,
+              indicatorColor: sourceColor.withValues(alpha: 0.4),
+              labelTextStyle: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return TextStyle(
+                    color: sourceColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  );
+                }
+                return const TextStyle(color: Colors.grey, fontSize: 12);
+              }),
+              iconTheme: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return IconThemeData(color: sourceColor);
+                }
+                return const IconThemeData(color: Colors.grey);
+              }),
+            ),
+          );
+        }
+        return Theme(data: theme, child: child);
+      },
     );
   }
 
@@ -277,113 +516,41 @@ class MyApp extends StatelessWidget {
       timeDilation = 1.0;
     }
 
-    return DynamicColorBuilder(
-      builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
-        final bool useMaterialYou =
-            themeProvider.appTheme == AppTheme.system &&
-            lightDynamic != null &&
-            darkDynamic != null;
-
-        final Color accentColor = useMaterialYou
-            ? lightDynamic.primary
-            : themeProvider.accentColor;
-
-        final ColorScheme lightScheme = useMaterialYou
-            ? lightDynamic
-            : ColorScheme.fromSeed(
-                seedColor: accentColor,
-                brightness: Brightness.light,
-                dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
-              );
-
-        final ThemeData baseLightTheme = _createTheme(
-          themeProvider: themeProvider,
-          colorScheme: lightScheme,
-        );
-
-        final ColorScheme darkScheme = useMaterialYou
-            ? darkDynamic
-            : ColorScheme.fromSeed(
-                seedColor: accentColor,
-                brightness: Brightness.dark,
-                dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
-              );
-
-        final ThemeData darkTheme = _createTheme(
-          themeProvider: themeProvider,
-          colorScheme: darkScheme,
-        );
-
-        final ThemeData oledTheme = darkTheme.copyWith(
-          scaffoldBackgroundColor: Colors.black,
-          colorScheme: darkTheme.colorScheme.copyWith(
-            surface: Colors.black,
-            surfaceContainerLowest: Colors.black,
-            surfaceContainerLow: Colors.black,
+    final app = RawMaterialApp(
+      title: 'Komet',
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('ru'), Locale('en')],
+      locale: const Locale('ru'),
+      navigatorKey: navigatorKey,
+      builder: (context, child) {
+        final showHud =
+            themeProvider.debugShowPerformanceOverlay ||
+            themeProvider.showFpsOverlay;
+        return SizedBox.expand(
+          child: Stack(
+            children: [
+              if (child != null) child,
+              if (showHud)
+                Positioned(
+                  top: 64.0 + 48.0 + 16.0,
+                  right: 16.0,
+                  child: Padding(
+                    padding: padding,
+                    child: IgnorePointer(child: _MiniFpsHud()),
+                  ),
+                ),
+            ],
           ),
-          navigationBarTheme: NavigationBarThemeData(
-            backgroundColor: Colors.black,
-            indicatorColor: accentColor.withValues(alpha: 0.4),
-            labelTextStyle: WidgetStateProperty.resolveWith((states) {
-              if (states.contains(WidgetState.selected)) {
-                return TextStyle(
-                  color: accentColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                );
-              }
-              return const TextStyle(color: Colors.grey, fontSize: 12);
-            }),
-            iconTheme: WidgetStateProperty.resolveWith((states) {
-              if (states.contains(WidgetState.selected)) {
-                return IconThemeData(color: accentColor);
-              }
-              return const IconThemeData(color: Colors.grey);
-            }),
-          ),
-        );
-
-        final ThemeData activeDarkTheme =
-            themeProvider.appTheme == AppTheme.black ? oledTheme : darkTheme;
-
-        return MaterialApp(
-          title: 'Komet',
-          localizationsDelegates: const [
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          supportedLocales: const [Locale('ru'), Locale('en')],
-          locale: const Locale('ru'),
-          themeMode: themeProvider.themeMode,
-          theme: baseLightTheme,
-          darkTheme: activeDarkTheme,
-          navigatorKey: navigatorKey,
-          builder: (context, child) {
-            final showHud =
-                themeProvider.debugShowPerformanceOverlay ||
-                themeProvider.showFpsOverlay;
-            return SizedBox.expand(
-              child: Stack(
-                children: [
-                  if (child != null) child,
-                  if (showHud)
-                    Positioned(
-                      top: 64.0 + 48.0 + 16.0,
-                      right: 16.0,
-                      child: Padding(
-                        padding: padding,
-                        child: IgnorePointer(child: _MiniFpsHud()),
-                      ),
-                    ),
-                ],
-              ),
-            );
-          },
-          home: hasToken ? const HomeScreen() : const PhoneEntryScreen(),
         );
       },
+      home: hasToken ? const HomeScreen() : const PhoneEntryScreen(),
     );
+
+    return Builder(builder: (context) => _buildLegacyTheme(context, app));
   }
 }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:gwid/utils/theme_provider.dart';
 import 'dart:io';
@@ -1238,8 +1239,8 @@ class _ThemeManagementSection extends StatelessWidget {
                   children: [
                     Icon(
                       isActive
-                          ? Icons.check_circle
-                          : Icons.radio_button_unchecked,
+                          ? Symbols.check_circle_rounded
+                          : Symbols.radio_button_unchecked_rounded,
                       color: isActive
                           ? colors.primary
                           : colors.onSurfaceVariant,
@@ -1263,7 +1264,7 @@ class _ThemeManagementSection extends StatelessWidget {
                       children: [
                         if (preset.id != 'default')
                           IconButton(
-                            icon: const Icon(Icons.edit_outlined, size: 20),
+                            icon: const Icon(Symbols.edit_rounded, size: 20),
                             tooltip: "Переименовать",
                             onPressed: () =>
                                 _showRenameDialog(context, theme, preset),
@@ -1340,7 +1341,8 @@ class _ModernSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final colorScheme = ColorScheme.of(context);
+    final textTheme = TextTheme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1348,25 +1350,18 @@ class _ModernSection extends StatelessWidget {
           padding: const EdgeInsets.only(left: 4.0, bottom: 12.0),
           child: Text(
             title.toUpperCase(),
-            style: TextStyle(
-              color: colors.primary,
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-              letterSpacing: 0.5,
+            style: textTheme.labelLarge!.copyWith(
+              color: colorScheme.onSurfaceVariant,
             ),
           ),
         ),
         Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(
-              color: colors.outlineVariant.withValues(alpha: 0.2),
-              width: 1,
-            ),
-          ),
           clipBehavior: Clip.antiAlias,
-          color: colors.surfaceContainerHighest.withValues(alpha: 0.3),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(16.0)),
+          ),
+          color: colorScheme.surfaceContainerLow,
+          elevation: 0.0,
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: 16.0,
@@ -1395,18 +1390,26 @@ class _CustomSettingTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final colorScheme = ColorScheme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: colors.primaryContainer.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(12),
+          SizedBox.square(
+            dimension: 40.0,
+            child: Material(
+              shape: const StadiumBorder(),
+              color: colorScheme.primaryFixed,
+              child: IconTheme.merge(
+                data: IconThemeData(
+                  fill: 1.0,
+                  opticalSize: 24.0,
+                  size: 24.0,
+                  color: colorScheme.onPrimaryFixedVariant,
+                ),
+                child: Icon(icon),
+              ),
             ),
-            child: Icon(icon, color: colors.primary, size: 20),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -1418,7 +1421,7 @@ class _CustomSettingTile extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.w500,
                     fontSize: 15,
-                    color: colors.onSurface,
+                    color: colorScheme.onSurface,
                   ),
                 ),
                 if (subtitle != null && subtitle!.isNotEmpty)
@@ -1428,7 +1431,7 @@ class _CustomSettingTile extends StatelessWidget {
                       subtitle!,
                       style: TextStyle(
                         fontSize: 12,
-                        color: colors.onSurfaceVariant,
+                        color: colorScheme.onSurfaceVariant,
                         height: 1.2,
                       ),
                     ),
@@ -1458,7 +1461,7 @@ class _ColorPickerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final colorScheme = ColorScheme.of(context);
     return InkWell(
       onTap: () => _showColorPicker(
         context,
@@ -1470,16 +1473,20 @@ class _ColorPickerTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 8.0),
         child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: colors.primaryContainer.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                Icons.color_lens_outlined,
-                color: colors.primary,
-                size: 20,
+            SizedBox.square(
+              dimension: 40.0,
+              child: Material(
+                shape: const StadiumBorder(),
+                color: colorScheme.primaryFixed,
+                child: IconTheme.merge(
+                  data: IconThemeData(
+                    fill: 1.0,
+                    opticalSize: 24.0,
+                    size: 24.0,
+                    color: colorScheme.onPrimaryFixedVariant,
+                  ),
+                  child: Icon(Symbols.color_lens_rounded),
+                ),
               ),
             ),
             const SizedBox(width: 16),
@@ -1492,14 +1499,14 @@ class _ColorPickerTile extends StatelessWidget {
                     style: TextStyle(
                       fontWeight: FontWeight.w500,
                       fontSize: 15,
-                      color: colors.onSurface,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                   Text(
                     subtitle,
                     style: TextStyle(
                       fontSize: 12,
-                      color: colors.onSurfaceVariant,
+                      color: colorScheme.onSurfaceVariant,
                       height: 1.2,
                     ),
                   ),
@@ -1513,7 +1520,7 @@ class _ColorPickerTile extends StatelessWidget {
                 color: color,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: colors.outline.withValues(alpha: 0.3),
+                  color: colorScheme.outline.withValues(alpha: 0.3),
                   width: 2,
                 ),
                 boxShadow: [

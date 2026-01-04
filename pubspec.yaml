@@ -78,6 +78,8 @@ dependencies:
   just_audio: ^0.9.40
   platform_info: ^5.0.0
   flutter_markdown_plus: ^1.0.7
+  libmonet: ^1.0.0
+  material_symbols_icons: ^4.2892.0
 
 dev_dependencies:
   # SDK зависимости

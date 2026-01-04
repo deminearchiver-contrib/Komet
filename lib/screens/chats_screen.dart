@@ -1402,7 +1402,7 @@ class _ChatsScreenState extends State<ChatsScreen>
   }
 
   Widget _buildAppDrawer(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
+    final colorScheme = ColorScheme.of(context);
 
     final themeProvider = context.watch<ThemeProvider>();
     final isDarkMode = themeProvider.themeMode == ThemeMode.dark;
@@ -1455,7 +1455,7 @@ class _ChatsScreenState extends State<ChatsScreen>
                           ),
                         );
                       }
-                      return BoxDecoration(color: colors.primaryContainer);
+                      return BoxDecoration(color: colorScheme.primaryContainer);
                     }(),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1466,7 +1466,7 @@ class _ChatsScreenState extends State<ChatsScreen>
                           children: [
                             CircleAvatar(
                               radius: 30,
-                              backgroundColor: colors.primary,
+                              backgroundColor: colorScheme.primary,
                               backgroundImage:
                                   _isProfileLoading ||
                                       _myProfile?.photoBaseUrl == null
@@ -1493,7 +1493,7 @@ class _ChatsScreenState extends State<ChatsScreen>
                                                       .toUpperCase()
                                                 : '?',
                                             style: TextStyle(
-                                              color: colors.onPrimary,
+                                              color: colorScheme.onPrimary,
                                               fontSize: 28,
                                             ),
                                           )
@@ -1504,7 +1504,7 @@ class _ChatsScreenState extends State<ChatsScreen>
                                 isDarkMode
                                     ? Icons.brightness_7
                                     : Icons.brightness_4,
-                                color: colors.onPrimaryContainer,
+                                color: colorScheme.onPrimaryContainer,
                                 size: 26,
                               ),
                               onPressed: () {
@@ -1523,7 +1523,7 @@ class _ChatsScreenState extends State<ChatsScreen>
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: colors.onPrimaryContainer,
+                            color: colorScheme.onPrimaryContainer,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -1535,9 +1535,8 @@ class _ChatsScreenState extends State<ChatsScreen>
                               child: Text(
                                 _myProfile?.formattedPhone ?? '',
                                 style: TextStyle(
-                                  color: colors.onPrimaryContainer.withValues(
-                                    alpha: 0.8,
-                                  ),
+                                  color: colorScheme.onPrimaryContainer
+                                      .withValues(alpha: 0.8),
                                   fontSize: 14,
                                 ),
                               ),
@@ -1554,7 +1553,7 @@ class _ChatsScreenState extends State<ChatsScreen>
                                   _isAccountsExpanded
                                       ? Icons.expand_less
                                       : Icons.expand_more,
-                                  color: colors.onPrimaryContainer,
+                                  color: colorScheme.onPrimaryContainer,
                                   size: 24,
                                 ),
                               ),
@@ -1580,8 +1579,9 @@ class _ChatsScreenState extends State<ChatsScreen>
                                       leading: CircleAvatar(
                                         radius: 20,
                                         backgroundColor: isCurrent
-                                            ? colors.primary
-                                            : colors.surfaceContainerHighest,
+                                            ? colorScheme.primary
+                                            : colorScheme
+                                                  .surfaceContainerHighest,
                                         backgroundImage:
                                             account.avatarUrl != null
                                             ? CachedNetworkImageProvider(
@@ -1596,8 +1596,9 @@ class _ChatsScreenState extends State<ChatsScreen>
                                                     : '?',
                                                 style: TextStyle(
                                                   color: isCurrent
-                                                      ? colors.onPrimary
-                                                      : colors.onSurfaceVariant,
+                                                      ? colorScheme.onPrimary
+                                                      : colorScheme
+                                                            .onSurfaceVariant,
                                                   fontSize: 16,
                                                 ),
                                               )
@@ -1617,14 +1618,15 @@ class _ChatsScreenState extends State<ChatsScreen>
                                       trailing: isCurrent
                                           ? Icon(
                                               Icons.check_circle,
-                                              color: colors.primary,
+                                              color: colorScheme.primary,
                                               size: 20,
                                             )
                                           : IconButton(
                                               icon: Icon(
                                                 Icons.close,
                                                 size: 20,
-                                                color: colors.onSurfaceVariant,
+                                                color: colorScheme
+                                                    .onSurfaceVariant,
                                               ),
                                               onPressed: () {
                                                 _showDeleteAccountDialog(
@@ -1709,7 +1711,7 @@ class _ChatsScreenState extends State<ChatsScreen>
                                                           'Аккаунт недействителен. Требуется повторная авторизация.',
                                                         ),
                                                         backgroundColor:
-                                                            colors.error,
+                                                            colorScheme.error,
                                                         duration:
                                                             const Duration(
                                                               seconds: 4,
@@ -1725,7 +1727,7 @@ class _ChatsScreenState extends State<ChatsScreen>
                                                           'Ошибка переключения аккаунта: $e',
                                                         ),
                                                         backgroundColor:
-                                                            colors.error,
+                                                            colorScheme.error,
                                                       ),
                                                     );
                                                   }
@@ -1788,7 +1790,7 @@ class _ChatsScreenState extends State<ChatsScreen>
             child: () {
               final menuColumn = Column(
                 children: [
-                  _buildAccountsSection(context, colors),
+                  _buildAccountsSection(context, colorScheme),
                   ListTile(
                     leading: const Icon(Icons.person_outline),
                     title: const Text('Мой профиль'),
@@ -1829,7 +1831,7 @@ class _ChatsScreenState extends State<ChatsScreen>
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                colors.primary,
+                                colorScheme.primary,
                               ),
                             ),
                           )
@@ -1851,7 +1853,7 @@ class _ChatsScreenState extends State<ChatsScreen>
                               content: const Text(
                                 'Переподключение выполнено успешно',
                               ),
-                              backgroundColor: colors.primaryContainer,
+                              backgroundColor: colorScheme.primaryContainer,
                               duration: const Duration(seconds: 2),
                             ),
                           );
@@ -1862,7 +1864,7 @@ class _ChatsScreenState extends State<ChatsScreen>
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('Ошибка переподключения: $e'),
-                              backgroundColor: colors.error,
+                              backgroundColor: colorScheme.error,
                               duration: const Duration(seconds: 3),
                             ),
                           );
@@ -1920,8 +1922,11 @@ class _ChatsScreenState extends State<ChatsScreen>
                   const Spacer(),
                   const Divider(height: 1, indent: 16, endIndent: 16),
                   ListTile(
-                    leading: Icon(Icons.logout, color: colors.error),
-                    title: Text('Выйти', style: TextStyle(color: colors.error)),
+                    leading: Icon(Icons.logout, color: colorScheme.error),
+                    title: Text(
+                      'Выйти',
+                      style: TextStyle(color: colorScheme.error),
+                    ),
                     onTap: () {
                       Navigator.pop(context);
                       _showLogoutDialog();
