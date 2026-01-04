@@ -61,6 +61,9 @@ class MessageQueueService {
   final StreamController<List<QueueItem>> _queueController =
       StreamController<List<QueueItem>>.broadcast();
 
+  // Локальный массив для отслеживания обработанных сообщений из очереди
+  final Set<String> _processedMessageIds = {};
+
   Stream<List<QueueItem>> get queueStream => _queueController.stream;
   List<QueueItem> get queue => List.unmodifiable(_queue);
 
@@ -170,6 +173,26 @@ class MessageQueueService {
     } catch (e) {
       return null;
     }
+  }
+
+  /// Проверяет, было ли сообщение уже обработано
+  bool isMessageProcessed(String messageId) {
+    return _processedMessageIds.contains(messageId);
+  }
+
+  /// Отмечает сообщение как обработанное
+  void markMessageAsProcessed(String messageId) {
+    _processedMessageIds.add(messageId);
+    // Ограничиваем размер множества, чтобы не занимать слишком много памяти
+    if (_processedMessageIds.length > 1000) {
+      // Удаляем первый элемент (самый старый)
+      _processedMessageIds.remove(_processedMessageIds.first);
+    }
+  }
+
+  /// Очищает список обработанных сообщений
+  void clearProcessedMessages() {
+    _processedMessageIds.clear();
   }
 
   void dispose() {

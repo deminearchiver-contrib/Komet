@@ -776,9 +776,20 @@ extension ApiServiceConnection on ApiService {
     final persistentItems = _queueService.getPersistentItems();
     print('Обработка постоянной очереди: ${persistentItems.length} элементов');
     for (var item in persistentItems) {
+      // Проверяем, не было ли это сообщение уже обработано
+      if (_queueService.isMessageProcessed(item.id)) {
+        print(
+          'Сообщение ${item.id} уже было обработано, пропускаем и удаляем из очереди',
+        );
+        _queueService.removeFromQueue(item.id);
+        continue;
+      }
+
       print(
         'Отправляем из очереди: ${item.type.name}, opcode=${item.opcode}, cid=${item.cid}',
       );
+      // Отмечаем сообщение как обработанное перед отправкой
+      _queueService.markMessageAsProcessed(item.id);
       unawaited(
         _sendMessage(item.opcode, item.payload)
             .then((_) {
